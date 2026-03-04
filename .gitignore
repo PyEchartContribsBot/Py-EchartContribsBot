@@ -1,6 +1,9 @@
 # 忽略示例/测试文件
 Current.json
 
+# macOS Finder metadata
+.DS_Store
+
 # Python
 __pycache__/
 *.py[cod]
