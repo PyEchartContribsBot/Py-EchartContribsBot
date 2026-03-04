@@ -144,3 +144,7 @@ python upload_to_wiki.py
 - 仓库设为 Public 时，代码中不会暴露 Secrets（前提是敏感信息仅存放于 Secrets）
 - GitHub Actions 会自动在日志中隐藏（mask）secrets 的值
 - 本地运行时请确保 `.env` 文件安全，不要提交到版本控制系统
+
+## 声明
+
+本项目使用了 GitHub Copilot。
