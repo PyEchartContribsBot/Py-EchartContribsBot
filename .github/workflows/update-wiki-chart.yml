@@ -16,6 +16,7 @@ jobs:
             DISPLAY_NAME: "${{ secrets.DISPLAY_NAME || vars.DISPLAY_NAME }}"
             EXCLUDED_NAMESPACES: "${{ vars.EXCLUDED_NAMESPACES }}"
             USER_AGENT: "${{ secrets.USER_AGENT || vars.USER_AGENT }}"
+            EDIT_TAG_CANDIDATES: "${{ vars.EDIT_TAG_CANDIDATES }}"
             WIKI_API: "${{ vars.WIKI_API }}"
             WIKI_PAGE: "${{ secrets.WIKI_PAGE || vars.WIKI_PAGE }}"
             BOT_USERNAME: "${{ secrets.BOT_USERNAME }}"

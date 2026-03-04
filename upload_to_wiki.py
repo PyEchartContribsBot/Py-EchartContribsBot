@@ -29,6 +29,7 @@ def post_edit(
     max_lag: int,
     assert_mode: str,
     mark_as_bot: bool,
+    tags: str | None,
 ) -> dict[str, Any]:
     payload = {
         "action": "edit",
@@ -42,6 +43,8 @@ def post_edit(
     }
     if mark_as_bot:
         payload["bot"] = "1"
+    if tags:
+        payload["tags"] = tags
 
     response = session.post(
         wiki_api,
@@ -62,11 +65,44 @@ def is_bot_permission_error(result: dict[str, Any]) -> bool:
     return code == "permissiondenied" and "bot" in info
 
 
+def is_tag_error(result: dict[str, Any]) -> bool:
+    error = result.get("error")
+    if not isinstance(error, dict):
+        return False
+
+    code = str(error.get("code", "")).lower()
+    info = str(error.get("info", "")).lower()
+
+    if code == "badtags":
+        return True
+
+    return code == "permissiondenied" and "tag" in info
+
+
+def parse_edit_tag_candidates(raw_value: str) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    for token in raw_value.split(","):
+        tag = token.strip()
+        if not tag:
+            continue
+        key = tag.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(tag)
+
+    return candidates
+
+
 def main() -> None:
     wiki_api = os.environ.get("WIKI_API", "").strip()
     wiki_page = os.environ.get("WIKI_PAGE", "").strip()
     bot_username = os.environ.get("BOT_USERNAME", "").strip()
     bot_password = os.environ.get("BOT_PASSWORD", "").strip()
+    edit_tag_candidates_raw = os.environ.get("EDIT_TAG_CANDIDATES",
+                                             "Bot,Automation tool").strip()
     user_agent = os.environ.get(
         "USER_AGENT",
         "WikiChartBot/1.0 (https://github.com/your-org/your-repo; "
@@ -226,27 +262,19 @@ def main() -> None:
         print("No content changes detected; skip edit.")
         raise SystemExit(0)
 
-    try:
-        d5 = post_edit(
-            session=session,
-            wiki_api=wiki_api,
-            wiki_page=wiki_page,
-            new_text=new_text,
-            csrf_token=csrf_token,
-            timeout=timeout,
-            max_lag=max_lag,
-            assert_mode=assert_mode,
-            mark_as_bot=True,
-        )
-    except Exception as exc:
-        fail("Edit request failed", str(exc))
+    edit_tag_candidates = parse_edit_tag_candidates(edit_tag_candidates_raw)
 
-    if d5.get("edit",
-              {}).get("result") != "Success" and is_bot_permission_error(d5):
-        if has_bot_group:
-            warn(f"用户 {bot_username or 'BOT_USERNAME'} 声明包含 bot 用户组，"
-                 "但带 bot 标记编辑仍被拒绝；"
-                 "本次将继续提交但不附加 bot 标记。")
+    attempts: list[tuple[bool, str | None]] = []
+    for mark_as_bot in (True, False):
+        for tags in edit_tag_candidates:
+            attempts.append((mark_as_bot, tags))
+        attempts.append((mark_as_bot, None))
+
+    d5: dict[str, Any] = {}
+    warned_bot_fallback = False
+    warned_tag_fallback = False
+
+    for mark_as_bot, tags in attempts:
         try:
             d5 = post_edit(
                 session=session,
@@ -257,13 +285,34 @@ def main() -> None:
                 timeout=timeout,
                 max_lag=max_lag,
                 assert_mode=assert_mode,
-                mark_as_bot=False,
+                mark_as_bot=mark_as_bot,
+                tags=tags,
             )
         except Exception as exc:
-            fail("Edit retry without bot flag failed", str(exc))
+            fail("Edit request failed", str(exc))
+
+        if d5.get("edit", {}).get("result") == "Success":
+            break
+
+        if is_tag_error(d5) and tags:
+            if not warned_tag_fallback:
+                warn("目标站点可能不支持部分变更标签（例如 Automation tool）；"
+                     "将自动回退到更少标签或不带标签继续尝试。")
+                warned_tag_fallback = True
+            continue
+
+        if is_bot_permission_error(d5) and mark_as_bot:
+            if has_bot_group and not warned_bot_fallback:
+                warn(f"用户 {bot_username or 'BOT_USERNAME'} 声明包含 bot 用户组，"
+                     "但带 bot 标记编辑仍被拒绝；"
+                     "本次将继续提交但不附加 bot 标记。")
+            warned_bot_fallback = True
+            continue
+
+        fail("Wiki edit failed", d5)
 
     if d5.get("edit", {}).get("result") != "Success":
-        fail("Wiki edit failed", d5)
+        fail("Wiki edit failed after all fallbacks", d5)
 
     print("Wiki page updated successfully.")
 
