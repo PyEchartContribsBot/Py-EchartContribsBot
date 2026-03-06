@@ -36,7 +36,8 @@ def post_edit(
         "title": wiki_page,
         "text": new_text,
         "token": csrf_token,
-        "summary": "Automated update: echart_option.json",
+        "summary":
+        "Automated update datapage for the contribution ECharts (JSON)",
         "format": "json",
         "assert": assert_mode,
         "maxlag": max_lag,
@@ -304,8 +305,8 @@ def main() -> None:
         if is_bot_permission_error(d5) and mark_as_bot:
             if has_bot_group and not warned_bot_fallback:
                 warn(f"用户 {bot_username or 'BOT_USERNAME'} 声明包含 bot 用户组，"
-                     "但带 bot 标记编辑仍被拒绝；"
-                     "本次将继续提交但不附加 bot 标记。")
+                     "但标记此编辑为机器人编辑被拒绝；"
+                     "本次将继续提交但不标记此编辑为机器人编辑。")
             warned_bot_fallback = True
             continue
 
