@@ -97,6 +97,16 @@ def parse_edit_tag_candidates(raw_value: str) -> list[str]:
     return candidates
 
 
+def format_api_error(result: dict[str, Any]) -> str:
+    error = result.get("error")
+    if not isinstance(error, dict):
+        return "No structured error payload returned"
+
+    code = str(error.get("code", ""))
+    info = str(error.get("info", ""))
+    return f"error.code={code!r}, error.info={info!r}, error={error}"
+
+
 def main() -> None:
     wiki_api = os.environ.get("WIKI_API", "").strip()
     wiki_page = os.environ.get("WIKI_PAGE", "").strip()
@@ -278,8 +288,13 @@ def main() -> None:
     d5: dict[str, Any] = {}
     warned_bot_fallback = False
     warned_tag_fallback = False
+    attempt_logs: list[str] = []
 
-    for mark_as_bot, tags in attempts:
+    for attempt_index, (mark_as_bot, tags) in enumerate(attempts, start=1):
+        attempt_context = (
+            f"attempt={attempt_index}/{len(attempts)}, "
+            f"mark_as_bot={mark_as_bot}, tags={tags!r}"
+        )
         try:
             d5 = post_edit(
                 session=session,
@@ -295,15 +310,20 @@ def main() -> None:
                 summary=summary,
             )
         except Exception as exc:
-            fail("Edit request failed", str(exc))
+            fail(f"Edit request failed ({attempt_context})", str(exc))
 
         if d5.get("edit", {}).get("result") == "Success":
             break
 
+        error_text = format_api_error(d5)
+        attempt_logs.append(f"{attempt_context}; {error_text}")
+        warn(f"编辑尝试失败：{attempt_context}; {error_text}")
+
         if is_tag_error(d5) and tags:
             if not warned_tag_fallback:
                 warn("目标站点可能不支持部分变更标签；"
-                     "将自动回退到不带标签继续尝试。")
+                     "将自动回退到不带标签继续尝试。"
+                     f"失败详情：{error_text}")
                 warned_tag_fallback = True
             continue
 
@@ -311,14 +331,18 @@ def main() -> None:
             if has_bot_group and not warned_bot_fallback:
                 warn(f"用户 {bot_username or 'BOT_USERNAME'} 声明包含 bot 用户组，"
                      "但标记此编辑为机器人编辑被拒绝；"
-                     "本次将继续提交但不标记此编辑为机器人编辑。")
+                     "本次将继续提交但不标记此编辑为机器人编辑。"
+                     f"失败详情：{error_text}")
             warned_bot_fallback = True
             continue
 
         fail("Wiki edit failed", d5)
 
     if d5.get("edit", {}).get("result") != "Success":
-        fail("Wiki edit failed after all fallbacks", d5)
+        fail("Wiki edit failed after all fallbacks", {
+            "last_response": d5,
+            "attempt_logs": attempt_logs,
+        })
 
     print("Wiki page updated successfully.")
 
