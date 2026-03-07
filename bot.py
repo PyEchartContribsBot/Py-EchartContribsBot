@@ -300,14 +300,6 @@ def build_option(display_name: str, x_labels: list[str],
     generated_time = (f"{now_utc.year}年{now_utc.month}月{now_utc.day}日"
                       f"{now_utc.hour:02d}:{now_utc.minute:02d}〔UTC〕")
 
-    series_data = [{
-        "value": value,
-        "label": {
-            "show": True,
-            "position": "top" if index % 2 == 0 else "bottom",
-        },
-    } for index, value in enumerate(y_values)]
-
     option: dict[str, Any] = {
         "title": {
             "text": f"{display_name}的编辑历史",
@@ -319,7 +311,7 @@ def build_option(display_name: str, x_labels: list[str],
             }
         },
         "grid": {
-            "top": 110,  # 扩大顶部边距，为多行标题留出充足空间
+            "top": 110,
             "left": "10%",
             "right": "10%",
             "containLabel": True
@@ -328,8 +320,8 @@ def build_option(display_name: str, x_labels: list[str],
             "trigger": "axis",
             "axisPointer": {
                 "type": "cross",
-                "animation": False,
-            },
+                "animation": False
+            }
         },
         "toolbox": {
             "show": True,
@@ -343,61 +335,59 @@ def build_option(display_name: str, x_labels: list[str],
                 "restore": {},
                 "saveAsImage": {
                     "excludeComponents": ["toolbox", "dataZoom"]
-                },
+                }
             }
         },
         "axisPointer": {
             "link": {
                 "xAxisIndex": "all"
-            },
+            }
         },
-        "dataZoom": [
-            {
-                "type": "inside",
-                "xAxisIndex": [0],
-                "startValue": 0,
-                "end": 100
-            },
-            {
-                "show": True,
-                "xAxisIndex": [0],
-                "type": "slider",
-                "start": 0,
-                "end": 100
-            },
-        ],
+        "dataZoom": [{
+            "type": "inside",
+            "xAxisIndex": [0],
+            "startValue": 0,
+            "end": 100
+        }, {
+            "show": True,
+            "xAxisIndex": [0],
+            "type": "slider",
+            "start": 0,
+            "end": 100
+        }],
         "legend": {
-            "data": ["编辑次数"],
+            "data": ["编辑次数"]
         },
         "xAxis": {
-            "data": x_labels,
+            "data": x_labels
         },
         "yAxis": {},
         "series": [{
             "name": "月编辑数",
             "type": "line",
+            "showSymbol": False,
             "label": {
                 "formatter": "{c}",
                 "distance": 0,
                 "backgroundColor": "transparent",
-                "padding": 1,
+                "padding": 1
             },
-            "data": series_data,
+            "data": y_values,
             "markPoint": {
                 "data": [{
                     "type": "max",
                     "name": "最大值"
-                }],
+                }]
             },
             "markLine": {
                 "data": [{
                     "type": "average",
                     "name": "平均值"
-                }],
-            },
+                }]
+            }
         }],
         "animation":
-        True,
+        True
     }
     return option
 
