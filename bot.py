@@ -74,6 +74,42 @@ def _parse_excluded_namespaces(raw_value: str) -> set[int]:
     return namespace_ids
 
 
+def _parse_namespace_mode(raw_value: str) -> str:
+    mode = raw_value.strip().lower()
+    if not mode:
+        return "top"
+    if mode not in {"top", "all"}:
+        raise RuntimeError(
+            "环境变量 NAMESPACE_MODE 仅支持 top 或 all，例如 NAMESPACE_MODE=top")
+    return mode
+
+
+def _parse_top_namespace_limit(raw_value: str) -> int:
+    value = raw_value.strip()
+    if not value:
+        return 10
+    try:
+        limit = int(value)
+    except ValueError as exc:
+        raise RuntimeError(
+            "环境变量 TOP_NAMESPACE_LIMIT 必须是正整数，例如 TOP_NAMESPACE_LIMIT=10"
+        ) from exc
+    if limit <= 0:
+        raise RuntimeError("环境变量 TOP_NAMESPACE_LIMIT 必须大于 0")
+    return limit
+
+
+def _parse_chart_series_type(raw_value: str) -> str:
+    value = raw_value.strip().lower()
+    if not value:
+        return "bar"
+    if value not in {"bar", "line"}:
+        raise RuntimeError(
+            "环境变量 CHART_SERIES_TYPE 仅支持 bar 或 line，例如 CHART_SERIES_TYPE=bar"
+        )
+    return value
+
+
 # ===== 可配置参数 =====
 API_URL: str = os.environ.get("API_URL", "").strip()  # 必填：目标站点 API
 USER: str = os.environ.get("WIKI_USER", "").strip()  # 必填：统计目标用户名
@@ -81,6 +117,12 @@ DISPLAY_NAME: str = os.environ.get(
     "DISPLAY_NAME", "").strip() or USER  # 用于图表显示的别名，默认等效 WIKI_USER
 EXCLUDED_NAMESPACES: set[int] = _parse_excluded_namespaces(
     os.environ.get("EXCLUDED_NAMESPACES", ""))
+NAMESPACE_MODE: str = _parse_namespace_mode(
+    os.environ.get("NAMESPACE_MODE", "top"))
+TOP_NAMESPACE_LIMIT: int = _parse_top_namespace_limit(
+    os.environ.get("TOP_NAMESPACE_LIMIT", "10"))
+CHART_SERIES_TYPE: str = _parse_chart_series_type(
+    os.environ.get("CHART_SERIES_TYPE", "bar"))
 OUTPUT_FILE: str = "echart_option.json"
 REQUEST_TIMEOUT_SECONDS: int = 30
 
@@ -254,14 +296,18 @@ def filter_namespace(contribs: list[dict[str, Any]],
     return filtered
 
 
-def group_by_month(
-        contribs: list[dict[str, Any]]) -> tuple[list[str], list[int]]:
-    """按真实年月排序并统计每月编辑次数。"""
-    monthly_counter: Counter[tuple[int, int]] = Counter()
+def group_by_month_and_namespace(
+    contribs: list[dict[str, Any]],
+) -> tuple[list[tuple[int, int]], dict[int, list[int]], dict[int, int]]:
+    """按年月和命名空间统计编辑数，并补齐完整月份轴。"""
+    monthly_namespace_counter: Counter[tuple[int, int, int]] = Counter()
+    month_counter: Counter[tuple[int, int]] = Counter()
+    namespace_totals: Counter[int] = Counter()
 
     for item in contribs:
         timestamp = item.get("timestamp")
-        if not isinstance(timestamp, str):
+        ns = item.get("ns")
+        if not isinstance(timestamp, str) or not isinstance(ns, int):
             continue
 
         try:
@@ -269,13 +315,15 @@ def group_by_month(
         except ValueError:
             continue
 
-        monthly_counter[(dt.year, dt.month)] += 1
+        key = (dt.year, dt.month, ns)
+        monthly_namespace_counter[key] += 1
+        month_counter[(dt.year, dt.month)] += 1
+        namespace_totals[ns] += 1
 
-    if not monthly_counter:
-        return [], []
+    if not month_counter:
+        return [], {}, {}
 
-    sorted_months = sorted(monthly_counter.keys())
-
+    sorted_months = sorted(month_counter.keys())
     start_year, start_month = sorted_months[0]
     end_year, end_month = sorted_months[-1]
 
@@ -288,22 +336,197 @@ def group_by_month(
             month = 1
             year += 1
 
-    x_labels = [f"{year}年{month}月" for year, month in full_months]
-    y_values = [monthly_counter.get(key, 0) for key in full_months]
-    return x_labels, y_values
+    namespace_month_counts: dict[int, list[int]] = {}
+    for ns_id in namespace_totals:
+        namespace_month_counts[ns_id] = [
+            monthly_namespace_counter.get((year, month, ns_id), 0)
+            for year, month in full_months
+        ]
+
+    return full_months, namespace_month_counts, dict(namespace_totals)
 
 
-def build_option(display_name: str, x_labels: list[str],
-                 y_values: list[int]) -> dict[str, Any]:
+def _build_namespace_name(ns_id: int) -> str:
+    if ns_id == 0:
+        return "（主）"
+    return f"{{{{ns:{ns_id}}}}}"
+
+
+def _select_series_namespaces(
+    namespace_totals: dict[int, int],
+    namespace_mode: str,
+    top_namespace_limit: int,
+) -> tuple[list[int], set[int]]:
+    ordered_namespaces = sorted(
+        namespace_totals,
+        key=lambda ns_id: (-namespace_totals[ns_id], ns_id),
+    )
+    if namespace_mode == "all" or len(
+            ordered_namespaces) <= top_namespace_limit:
+        return ordered_namespaces, set()
+
+    kept = ordered_namespaces[:top_namespace_limit]
+    merged = set(ordered_namespaces[top_namespace_limit:])
+    return kept, merged
+
+
+def _namespace_hue(ns_id: int) -> int:
+    # Multiplicative hashing keeps color mapping stable while distributing hues.
+    return int((ns_id * 2654435761) % 360)
+
+
+def _pick_lightness(variant_index: int) -> int:
+    cycle = [48, 58, 40, 66]
+    return cycle[variant_index % len(cycle)]
+
+
+def _build_namespace_colors(
+        namespace_ids: list[int]) -> dict[int, dict[str, str]]:
+    hue_variant_counts: dict[int, int] = {}
+    color_map: dict[int, dict[str, str]] = {}
+
+    for ns_id in namespace_ids:
+        hue = _namespace_hue(ns_id)
+        variant_index = hue_variant_counts.get(hue, 0)
+        hue_variant_counts[hue] = variant_index + 1
+
+        lightness = _pick_lightness(variant_index)
+        line_color = f"hsl({hue}, 62%, {lightness}%)"
+        area_color = f"hsla({hue}, 62%, {lightness}%, 0.35)"
+        color_map[ns_id] = {
+            "line": line_color,
+            "area": area_color,
+        }
+
+    return color_map
+
+
+def _build_excluded_namespaces_text(excluded_namespaces: set[int]) -> str:
+    if not excluded_namespaces:
+        return "未排除命名空间"
+
+    sorted_ids = sorted(excluded_namespaces)
+    preview_count = 3
+    preview_labels = [
+        _build_namespace_name(ns_id) for ns_id in sorted_ids[:preview_count]
+    ]
+    if len(sorted_ids) <= preview_count:
+        return "已排除：" + "、".join(preview_labels)
+
+    return ("已排除：" + "、".join(preview_labels) + f" 等{len(sorted_ids)}个命名空间")
+
+
+def _build_series_style(
+    chart_series_type: str,
+    line_color: str,
+    area_color: str,
+) -> dict[str, Any]:
+    if chart_series_type == "line":
+        return {
+            "showSymbol": False,
+            "lineStyle": {
+                "width": 1.8,
+                "color": line_color,
+            },
+            "areaStyle": {
+                "color": area_color,
+            },
+        }
+
+    return {
+        "barMaxWidth": 28,
+    }
+
+
+def build_option(
+    display_name: str,
+    full_months: list[tuple[int, int]],
+    namespace_month_counts: dict[int, list[int]],
+    namespace_totals: dict[int, int],
+    excluded_namespaces: set[int],
+    namespace_mode: str,
+    top_namespace_limit: int,
+    chart_series_type: str,
+) -> dict[str, Any]:
     """构建完整 Apache ECharts option JSON。"""
     now_utc = datetime.now(timezone.utc)
     generated_time = (f"{now_utc.year}年{now_utc.month}月{now_utc.day}日"
                       f"{now_utc.hour:02d}:{now_utc.minute:02d}〔UTC〕")
 
+    x_labels = [f"{year}年{month}月" for year, month in full_months]
+
+    selected_namespace_ids, merged_namespace_ids = _select_series_namespaces(
+        namespace_totals=namespace_totals,
+        namespace_mode=namespace_mode,
+        top_namespace_limit=top_namespace_limit,
+    )
+    namespace_colors = _build_namespace_colors(selected_namespace_ids)
+
+    legend_data: list[str] = []
+    series: list[dict[str, Any]] = []
+    for ns_id in selected_namespace_ids:
+        ns_name = _build_namespace_name(ns_id)
+        colors = namespace_colors[ns_id]
+        legend_data.append(ns_name)
+        series.append({
+            "name":
+            ns_name,
+            "type":
+            chart_series_type,
+            "stack":
+            "Total",
+            "itemStyle": {
+                "color": colors["line"]
+            },
+            "emphasis": {
+                "focus": "series"
+            },
+            "data":
+            namespace_month_counts.get(ns_id, [0] * len(x_labels)),
+            **_build_series_style(
+                chart_series_type=chart_series_type,
+                line_color=colors["line"],
+                area_color=colors["area"],
+            ),
+        })
+
+    if merged_namespace_ids:
+        other_data = [0] * len(x_labels)
+        for ns_id in merged_namespace_ids:
+            data = namespace_month_counts.get(ns_id, [0] * len(x_labels))
+            other_data = [
+                left + right for left, right in zip(other_data, data)
+            ]
+
+        other_name = "其他命名空间"
+        legend_data.append(other_name)
+        series.append({
+            "name": other_name,
+            "type": chart_series_type,
+            "stack": "Total",
+            "itemStyle": {
+                "color": "hsl(0, 0%, 45%)"
+            },
+            "emphasis": {
+                "focus": "series"
+            },
+            "data": other_data,
+            **_build_series_style(
+                chart_series_type=chart_series_type,
+                line_color="hsl(0, 0%, 45%)",
+                area_color="hsla(0, 0%, 45%, 0.35)",
+            ),
+        })
+
+    subtext = ("按月按命名空间统计\n"
+               f"{_build_excluded_namespaces_text(excluded_namespaces)}\n"
+               f"（截至 {generated_time}）")
+
     option: dict[str, Any] = {
         "title": {
             "text": f"{display_name}的编辑历史",
-            "subtext": f"按月统计次数\n排除“{{{{ns:2}}}}”和讨论命名空间\n（截至 {generated_time}）",
+            "subtext": subtext,
+            "top": 8,
             "left": "center",
             "itemGap": 10,
             "subtextStyle": {
@@ -311,9 +534,10 @@ def build_option(display_name: str, x_labels: list[str],
             }
         },
         "grid": {
-            "top": 110,
+            "top": 150,
             "left": "10%",
             "right": "10%",
+            "bottom": 95,
             "containLabel": True
         },
         "tooltip": {
@@ -352,42 +576,29 @@ def build_option(display_name: str, x_labels: list[str],
             "show": True,
             "xAxisIndex": [0],
             "type": "slider",
+            "bottom": 10,
             "start": 0,
             "end": 100
         }],
         "legend": {
-            "data": ["编辑次数"]
+            "type": "scroll",
+            "top": 100,
+            "left": "center",
+            "right": "10%",
+            "data": legend_data
         },
         "xAxis": {
+            "type": "category",
+            "boundaryGap": chart_series_type == "bar",
             "data": x_labels
         },
-        "yAxis": {},
-        "series": [{
-            "name": "月编辑数",
-            "type": "line",
-            "showSymbol": False,
-            "label": {
-                "formatter": "{c}",
-                "distance": 0,
-                "backgroundColor": "transparent",
-                "padding": 1
-            },
-            "data": y_values,
-            "markPoint": {
-                "data": [{
-                    "type": "max",
-                    "name": "最大值"
-                }]
-            },
-            "markLine": {
-                "data": [{
-                    "type": "average",
-                    "name": "平均值"
-                }]
-            }
-        }],
+        "yAxis": {
+            "type": "value"
+        },
+        "series":
+        series,
         "animation":
-        True
+        False
     }
     return option
 
@@ -401,8 +612,18 @@ def main() -> None:
 
         print(f"统计总编辑数（过滤后）: {len(filtered_contribs)}")
 
-        x_labels, y_values = group_by_month(filtered_contribs)
-        option = build_option(DISPLAY_NAME, x_labels, y_values)
+        (full_months, namespace_month_counts,
+         namespace_totals) = group_by_month_and_namespace(filtered_contribs)
+        option = build_option(
+            display_name=DISPLAY_NAME,
+            full_months=full_months,
+            namespace_month_counts=namespace_month_counts,
+            namespace_totals=namespace_totals,
+            excluded_namespaces=EXCLUDED_NAMESPACES,
+            namespace_mode=NAMESPACE_MODE,
+            top_namespace_limit=TOP_NAMESPACE_LIMIT,
+            chart_series_type=CHART_SERIES_TYPE,
+        )
 
         output_path = Path(OUTPUT_FILE)
         output_path.write_text(

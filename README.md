@@ -57,7 +57,17 @@
   - 可选，逗号分隔整数，例如：`1,2,3,5,7,9,11,13,15,829`
   - 用于排除不统计的命名空间
   - 不设置时使用默认排除列表，排除“用户”和数个常用的讨论命名空间
-  - 如果调整，请确保 `bot.py` 中构建 JSON 的 subtext 与排除列表一致
+ - `NAMESPACE_MODE`
+  - 可选，`top` 或 `all`
+  - 默认 `top`：仅展示 Top N 命名空间，其余合并为 `其他命名空间`
+  - `all`：展示全部命名空间
+ - `TOP_NAMESPACE_LIMIT`
+  - 可选，正整数，默认 `10`
+  - 仅在 `NAMESPACE_MODE=top` 时生效
+ - `CHART_SERIES_TYPE`
+  - 可选，`bar` 或 `line`
+  - 默认 `bar`：按月命名空间堆叠直方图
+  - `line`：按月命名空间堆叠面积/折线图
 - `EDIT_TAG_CANDIDATES`
   - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`Bot,Automation tool`
   - 默认值：`Bot,Automation tool`
@@ -72,14 +82,26 @@
 推荐通过环境变量配置，无需修改 `bot.py` 源码：
 
 - `EXCLUDED_NAMESPACES`：排除命名空间（逗号分隔整数）
+- `NAMESPACE_MODE`：命名空间序列展示策略（`top` 或 `all`）
+- `TOP_NAMESPACE_LIMIT`：Top 命名空间数量（正整数，默认 `10`）
+- `CHART_SERIES_TYPE`：图表系列类型（`bar` 或 `line`，默认 `bar`）
 - `USER_AGENT`：建议通过环境变量配置（**重要！**）
 - `DISPLAY_NAME`：未设置或为空时，默认回退为 `WIKI_USER`
 
 **注意：**
 - `API_URL` 和 `USER` 从环境变量读取，在 Actions 中会自动使用 Secrets/Variables 配置
 - `EXCLUDED_NAMESPACES` 也支持从 Variables/.env 读取（逗号分隔整数）
+- `NAMESPACE_MODE`、`TOP_NAMESPACE_LIMIT` 与 `CHART_SERIES_TYPE` 也支持从 Variables/.env 读取
 - `USER_AGENT` 也可通过 Variables 统一配置（`vars.USER_AGENT`）
 - 建议设置有意义的 `User-Agent`（包含项目标识与联系方式）
+
+## 图表行为（当前版本）
+
+- 输出图表默认是按月统计的命名空间堆叠直方图（ECharts `stacked bar`）
+- 可通过 `CHART_SERIES_TYPE=line` 切换为按月命名空间堆叠面积/折线图
+- 每个系列默认使用 `{{ns:命名空间数字}}` 作为名称，以便在 wiki 侧解析本地化命名空间名
+- 颜色按命名空间数字稳定映射，不依赖预先硬编码命名空间列表
+- 当命名空间较多时，默认启用 `Top N + Other`，降低 legend 拥挤风险
 
 ## Workflow 行为
 
