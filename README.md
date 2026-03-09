@@ -73,8 +73,8 @@
   - 默认 `bar`：直方图
   - `line`：折线图（堆叠样式下会带面积填充）
 - `EDIT_TAG_CANDIDATES`
-  - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`Bot,Automation tool`
-  - 默认值：`Bot,Automation tool`
+  - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`Bot`
+  - 默认值：`Bot`
   - 留空时不尝试任何 `tags`，仅执行无标签编辑
 
 > Workflow 兼容策略：`WIKI_USER` / `DISPLAY_NAME` / `USER_AGENT` / `WIKI_PAGE` 均为 **Secrets 优先，并支持 Variables**，可按实际情况选择。
@@ -124,7 +124,7 @@
   5. 优先使用 `action=edit` 的 `bot=1` 标记覆盖页面内容
     - 若 `BOT_USERNAME` 不具备 `(bot)` 用户组，workflow 会先给出警告并继续执行；带 bot 标记失败时会自动回退为普通编辑
      - 这表示当前账号并非机器人账号，长期持续自动编辑可能违反站点策略并导致被封禁
-    - 变更标签由 `EDIT_TAG_CANDIDATES` 控制（默认：`Bot,Automation tool`），会按顺序尝试；若站点不支持会自动回退为不带标签
+    - 变更标签由 `EDIT_TAG_CANDIDATES` 控制（默认：`Bot`），会按顺序尝试；若站点不支持会自动回退为不带标签
 - 如果页面内容未变化，自动跳过编辑
 - 失败时输出错误信息
 
