@@ -64,10 +64,14 @@
  - `TOP_NAMESPACE_LIMIT`
   - 可选，正整数，默认 `10`
   - 仅在 `NAMESPACE_MODE=top` 时生效
+ - `CHART_STYLE`
+  - 可选，`namespace_stacked` 或 `monthly_total`
+  - 默认 `namespace_stacked`：按命名空间堆叠
+  - `monthly_total`：按月总贡献（单序列）
  - `CHART_SERIES_TYPE`
   - 可选，`bar` 或 `line`
-  - 默认 `bar`：按月命名空间堆叠直方图
-  - `line`：按月命名空间堆叠面积/折线图
+  - 默认 `bar`：直方图
+  - `line`：折线图（堆叠样式下会带面积填充）
 - `EDIT_TAG_CANDIDATES`
   - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`Bot,Automation tool`
   - 默认值：`Bot,Automation tool`
@@ -82,6 +86,7 @@
 推荐通过环境变量配置，无需修改 `bot.py` 源码：
 
 - `EXCLUDED_NAMESPACES`：排除命名空间（逗号分隔整数）
+- `CHART_STYLE`：图表方案（`namespace_stacked` 或 `monthly_total`，默认 `namespace_stacked`）
 - `NAMESPACE_MODE`：命名空间序列展示策略（`top` 或 `all`）
 - `TOP_NAMESPACE_LIMIT`：Top 命名空间数量（正整数，默认 `10`）
 - `CHART_SERIES_TYPE`：图表系列类型（`bar` 或 `line`，默认 `bar`）
@@ -91,17 +96,18 @@
 **注意：**
 - `API_URL` 和 `USER` 从环境变量读取，在 Actions 中会自动使用 Secrets/Variables 配置
 - `EXCLUDED_NAMESPACES` 也支持从 Variables/.env 读取（逗号分隔整数）
-- `NAMESPACE_MODE`、`TOP_NAMESPACE_LIMIT` 与 `CHART_SERIES_TYPE` 也支持从 Variables/.env 读取
+- `CHART_STYLE`、`NAMESPACE_MODE`、`TOP_NAMESPACE_LIMIT` 与 `CHART_SERIES_TYPE` 也支持从 Variables/.env 读取
 - `USER_AGENT` 也可通过 Variables 统一配置（`vars.USER_AGENT`）
 - 建议设置有意义的 `User-Agent`（包含项目标识与联系方式）
 
 ## 图表行为（当前版本）
 
-- 输出图表默认是按月统计的命名空间堆叠直方图（ECharts `stacked bar`）
-- 可通过 `CHART_SERIES_TYPE=line` 切换为按月命名空间堆叠面积/折线图
-- 每个系列默认使用 `{{ns:命名空间数字}}` 作为名称，以便在 wiki 侧解析本地化命名空间名
-- 颜色按命名空间数字稳定映射，不依赖预先硬编码命名空间列表
-- 当命名空间较多时，默认启用 `Top N + Other`，降低 legend 拥挤风险
+- `CHART_STYLE=namespace_stacked`（默认）
+  - 输出按月命名空间堆叠图（默认 `bar`，可切 `line`）
+  - 每个系列默认使用 `{{ns:命名空间数字}}` 作为名称，便于 wiki 侧解析本地化命名空间名
+  - 当命名空间较多时，默认启用 `Top N + Other`，降低 legend 拥挤风险
+- `CHART_STYLE=monthly_total`
+  - 输出按月总贡献图（单序列，默认 `bar`，可切 `line`）
 
 ## Workflow 行为
 
