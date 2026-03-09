@@ -57,18 +57,18 @@
   - 可选，逗号分隔整数，例如：`1,2,3,5,7,9`
   - 用于排除不统计的命名空间
   - 不设置时会根据返回贡献自动排除：`ns=2`(用户) 与所有奇数命名空间（讨论页）
- - `NAMESPACE_MODE`
+- `NAMESPACE_MODE`
   - 可选，`top` 或 `all`
   - 默认 `top`：仅展示 Top N 命名空间，其余合并为 `其他命名空间`
   - `all`：展示全部命名空间
- - `TOP_NAMESPACE_LIMIT`
+- `TOP_NAMESPACE_LIMIT`
   - 可选，正整数，默认 `10`
   - 仅在 `NAMESPACE_MODE=top` 时生效
- - `CHART_STYLE`
+- `CHART_STYLE`
   - 可选，`namespace_stacked` 或 `monthly_total`
   - 默认 `namespace_stacked`：按命名空间堆叠
   - `monthly_total`：按月总贡献（单序列）
- - `CHART_SERIES_TYPE`
+- `CHART_SERIES_TYPE`
   - 可选，`bar` 或 `line`
   - 默认 `bar`：直方图
   - `line`：折线图（堆叠样式下会带面积填充）
@@ -100,7 +100,7 @@
 - `USER_AGENT` 也可通过 Variables 统一配置（`vars.USER_AGENT`）
 - 建议设置有意义的 `User-Agent`（包含项目标识与联系方式）
 
-## 图表行为（当前版本）
+## 图表行为
 
 - `CHART_STYLE=namespace_stacked`（默认）
   - 输出按月命名空间堆叠图（默认 `bar`，可切 `line`）
