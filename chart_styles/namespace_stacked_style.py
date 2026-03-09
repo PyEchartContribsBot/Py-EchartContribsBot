@@ -78,36 +78,6 @@ def _select_series_namespaces(
     return kept, merged
 
 
-def _namespace_hue(ns_id: int) -> int:
-    return int((ns_id * 2654435761) % 360)
-
-
-def _pick_lightness(variant_index: int) -> int:
-    cycle = [48, 58, 40, 66]
-    return cycle[variant_index % len(cycle)]
-
-
-def _build_namespace_colors(
-        namespace_ids: list[int]) -> dict[int, dict[str, str]]:
-    hue_variant_counts: dict[int, int] = {}
-    color_map: dict[int, dict[str, str]] = {}
-
-    for ns_id in namespace_ids:
-        hue = _namespace_hue(ns_id)
-        variant_index = hue_variant_counts.get(hue, 0)
-        hue_variant_counts[hue] = variant_index + 1
-
-        lightness = _pick_lightness(variant_index)
-        line_color = f"hsl({hue}, 62%, {lightness}%)"
-        area_color = f"hsla({hue}, 62%, {lightness}%, 0.35)"
-        color_map[ns_id] = {
-            "line": line_color,
-            "area": area_color,
-        }
-
-    return color_map
-
-
 def _build_excluded_namespaces_text(excluded_namespaces: set[int]) -> str:
     if not excluded_namespaces:
         return "未排除命名空间"
@@ -125,19 +95,14 @@ def _build_excluded_namespaces_text(excluded_namespaces: set[int]) -> str:
 
 def _build_series_style(
     chart_series_type: str,
-    line_color: str,
-    area_color: str,
 ) -> dict[str, Any]:
     if chart_series_type == "line":
         return {
             "showSymbol": False,
             "lineStyle": {
                 "width": 1.8,
-                "color": line_color,
             },
-            "areaStyle": {
-                "color": area_color,
-            },
+            "areaStyle": {},
         }
 
     return {
@@ -163,13 +128,11 @@ def build_option(
         namespace_mode=namespace_mode,
         top_namespace_limit=top_namespace_limit,
     )
-    namespace_colors = _build_namespace_colors(selected_namespace_ids)
 
     legend_data: list[str] = []
     series: list[dict[str, Any]] = []
     for ns_id in selected_namespace_ids:
         ns_name = _build_namespace_name(ns_id)
-        colors = namespace_colors[ns_id]
         legend_data.append(ns_name)
         series.append({
             "name":
@@ -178,9 +141,6 @@ def build_option(
             chart_series_type,
             "stack":
             "Total",
-            "itemStyle": {
-                "color": colors["line"]
-            },
             "emphasis": {
                 "focus": "series"
             },
@@ -188,8 +148,6 @@ def build_option(
             namespace_month_counts.get(ns_id, [0] * len(x_labels)),
             **_build_series_style(
                 chart_series_type=chart_series_type,
-                line_color=colors["line"],
-                area_color=colors["area"],
             ),
         })
 
@@ -210,9 +168,6 @@ def build_option(
             chart_series_type,
             "stack":
             "Total",
-            "itemStyle": {
-                "color": "hsl(0, 0%, 45%)"
-            },
             "emphasis": {
                 "focus": "series"
             },
@@ -220,8 +175,6 @@ def build_option(
             other_data,
             **_build_series_style(
                 chart_series_type=chart_series_type,
-                line_color="hsl(0, 0%, 45%)",
-                area_color="hsla(0, 0%, 45%, 0.35)",
             ),
         })
 
