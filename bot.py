@@ -96,11 +96,28 @@ def _parse_chart_series_type(raw_value: str) -> str:
     return value
 
 
+def _extract_first_user(user_str: str) -> str:
+    """从可能包含多个用户（以|或%7C分隔）的字符串中提取第一个用户。"""
+    if not user_str:
+        return user_str
+
+    # 检查管道符 |（未编码）
+    if '|' in user_str:
+        return user_str.split('|')[0].strip()
+
+    # 检查管道符 %7C（URL编码）
+    if '%7C' in user_str:
+        return user_str.split('%7C')[0].strip()
+
+    return user_str
+
+
 # ===== 可配置参数 =====
 API_URL: str = os.environ.get("API_URL", "").strip()  # 必填：目标站点 API
 USER: str = os.environ.get("WIKI_USER", "").strip()  # 必填：统计目标用户名
-DISPLAY_NAME: str = os.environ.get(
-    "DISPLAY_NAME", "").strip() or USER  # 用于图表显示的别名，默认等效 WIKI_USER
+DISPLAY_NAME: str = os.environ.get("DISPLAY_NAME",
+                                   "").strip() or _extract_first_user(
+                                       USER)  # 用于图表显示的别名，默认等效 WIKI_USER 的第一个用户
 EXCLUDED_NAMESPACES: set[int] | None = _parse_excluded_namespaces(
     os.environ.get("EXCLUDED_NAMESPACES", ""))
 NAMESPACE_MODE: str = _parse_namespace_mode(

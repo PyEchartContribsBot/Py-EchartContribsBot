@@ -1,22 +1,33 @@
 # Wiki Chart Bot
 
-用户贡献统计机器人：通过 GitHub Actions 定期执行自动化任务，生成 `echart_option.json` 并更新 MediaWiki 页面内容。
-生成的 JSON 可直接作为 [Apache ECharts 5](https://echarts.apache.org/zh/index.html) 的 [setOption](https://echarts.apache.org/zh/api.html#echartsInstance.setOption) 输入，用于渲染图表。
-
+自动化用户贡献统计脚本：通过 GitHub Actions 定期执行自动化任务，生成符合 [Apache ECharts 5](https://echarts.apache.org/zh/index.html) 的 [setOption](https://echarts.apache.org/zh/api.html#echartsInstance.setOption) 输入要求的 JSON ，并更新 MediaWiki 页面内容。
 
 ## 文件结构
 
-- `bot.py`：拉取用户贡献并生成 ECharts option JSON
-- `upload_to_wiki.py`：登录 MediaWiki 并上传 `echart_option.json`
-- `.github/workflows/update-wiki-chart.yml`：定时（或手动）运行，并上传到 Wiki 目标页面
+- `bot.py`：使用 usercontribs 拉取用户贡献并生成 ECharts option JSON
+- `upload_to_wiki.py`：使用 edit 上传生成的 JSON 到指定 MediaWiki 页面
+- `.github/workflows/update-wiki-chart.yml`：定时（或手动）运行 bot.py 和 upload_to_wiki.py 的 GitHub Actions Workflow
+- `.env.example`：本地运行时的环境变量示例文件
+
+## 安全说明
+
+此项目**推荐** ≥ 1.27 的 MediaWiki 版本使用。这是因为此项目使用 login 登录，较低版本可能需要直接使用主账户登录，这会带来安全风险。
+- 根据MediaWiki API文档 [[Special:Apihelp/login]]：`此操作只应与[[Special:BotPasswords]]一起使用；用于主账户登录的方式已弃用，并可能在没有警告的情况下失败。要安全登录主账户，请使用action=clientlogin。`
+- [BotPasswords](https://www.mediawiki.org/wiki/Manual:Bot_passwords/zh)（MediaWiki 版本 ≥ 1.27）可限制机器人权限（包含可编辑范围）；若站点支持，建议在[[Special:BotPasswords]]创建后用于登录
+
+此项目使用 Secrets 处理敏感信息，所有敏感信息都应当使用 Secrets 储存。请不要将敏感信息直接放在代码或公开的仓库 Variables 中，尤其是当仓库设为 Public 时。GitHub Actions 会自动在日志中隐藏（mask）secrets 的值
+
+仓库设为 Public 时，代码中不会暴露 Secrets（前提是敏感信息仅存放于 Secrets）
+
+在本地使用 `.env` 文件存储敏感信息时，请确保不被提交，其应当已在 `.gitignore` 中忽略。
 
 ## 目标 MediaWiki 站点上的准备
 
 在开始之前，请务必详阅并遵循目标站点的机器人相关政策（通常在 `Project:Bot` 页面）；若有疑问，请先咨询站点维护人员。
 
 通常这意味着你需要一个持有机器人 `(bot)` 用户组的账号，原因如下：
-1. 该项目是长期、定时执行的自动化任务，通常符合申请机器人用户组的场景；
-2. 该项目依赖两项机器人用户组相关能力：
+1. 此项目是长期、定时执行的自动化任务，通常符合申请机器人用户组的场景；
+2. 此项目依赖两项机器人用户组相关能力：
   - 在 API 查询中使用更高上限 `(apihighlimits)`
   - 被识别为自动化过程 `(bot)`
 3. 若长期以非机器人身份执行自动化操作，可能导致账号被封禁。
@@ -33,18 +44,26 @@
 
 - `WIKI_USER`
   - 要统计贡献的用户名
+
+    可带`User:`前缀，但任何别名（如`U:`）都不支持；建议不加
+    - 根据 MediaWiki API 文档[[Special:ApiHelp/query]]，支持 `用户名、​IP、​临时用户和​跨wiki用户名（例如“前缀>示例用户”）`（“跨wiki用户名”指跨维基导入的页面修订历史中被导入的用户名，并非允许[[Special:Interwiki]]的跨Wiki链接）
+  - 如需查询多用户：使用 `|` 或 `%7C`（管道符）分隔多个用户名，例如 `User1|User2|User3`
+    - 图表会自动合并多个用户的贡献数据，目前不支持拆分
+    - `DISPLAY_NAME` 会默认使用 `WIKI_USER` 中的第一个用户名作为显示名称
 - `DISPLAY_NAME`
-  - 图表中显示的用户名/别名（如需匿名展示可填泛化名称）
+  - 图表中显示的用户名/别名
+  - 未设置或为空时，自动从 `WIKI_USER` 提取第一个用户作为默认值（若 `WIKI_USER` 包含多个用户，则只使用第一个）
 - `WIKI_PAGE`
-  - 要覆盖写入的页面标题，通常是个人用户页子页面
+  - 要覆盖写入的页面标题，通常是个人用户子页面
+  - 需为完整页面名称，例如：`User:ExampleBot/ContributionChart`
 - `USER_AGENT`
   - 建议配置为：`WikiChartBot/1.0 (https://github.com/<your‑org>/<your‑仓库>; <your-noreply-email>) requests/2.x`  
     - 即在括号中填写你的 GitHub 仓库 URL 和可联系邮箱。
-  - 若包含邮箱/联系信息，建议放 secret
+  - 若包含私人邮箱/联系信息，建议放 secret
 - `BOT_USERNAME`
   - Bot 的登录名
-  - 建议使用 BotPassword 登录名（常见格式：`主账号名@Bot密码名`），[BotPasswords](https://www.mediawiki.org/wiki/Manual:Bot_passwords/zh) 可限制机器人权限和可编辑范围；若站点支持，建议在 `Special:BotPassword` 创建后用于登录
-  - 此项目当前不支持 OAuth（原作者目标 wiki 站点不支持）
+  - BotPasswords的机器人名称格式：`主账户@机器人名称`
+  - 此项目当前不支持 OAuth（原作者目标 wiki 站点未安装 OAuth 扩展）
 - `BOT_PASSWORD`
   - Bot 登录密码
 
@@ -91,7 +110,8 @@
 - `TOP_NAMESPACE_LIMIT`：Top 命名空间数量（正整数，默认 `10`）
 - `CHART_SERIES_TYPE`：图表系列类型（`bar` 或 `line`，默认 `bar`）
 - `USER_AGENT`：建议通过环境变量配置（**重要！**）
-- `DISPLAY_NAME`：未设置或为空时，默认回退为 `WIKI_USER`
+- `DISPLAY_NAME`：未设置或为空时，自动从 `WIKI_USER` 提取第一个用户名作为默认值
+  - 若 `WIKI_USER` 包含多个用户（以 `|` 或 `%7C` 分隔），只使用第一个用户作为 `DISPLAY_NAME`
 
 **注意：**
 - `API_URL` 和 `USER` 从环境变量读取，在 Actions 中会自动使用 Secrets/Variables 配置
@@ -151,6 +171,7 @@
 - `bot.py` 会自动读取项目根目录下的 `.env`
 - 可先复制 `.env.example` 为 `.env`，再填入你的真实值
 - `.env` 已在 `.gitignore` 中忽略，不会被提交
+- 切记不要包含敏感信息的 `.env` 提交到版本控制系统，尤其是公开仓库
 
 示例：
 
@@ -170,14 +191,6 @@ python upload_to_wiki.py
 3. 点击 **Run workflow** 手动执行一次
 4. 检查日志中是否出现：`Wiki page updated successfully.` 或 `No content changes detected; skip edit.`
 
-## 安全说明
-
-- **所有敏感信息**（真实用户名、密码）均使用 GitHub Secrets 存储
-- `DISPLAY_NAME` 与 `WIKI_PAGE` 在需要匿名时建议使用 Secrets（而非普通仓库变量）
-- 仓库设为 Public 时，代码中不会暴露 Secrets（前提是敏感信息仅存放于 Secrets）
-- GitHub Actions 会自动在日志中隐藏（mask）secrets 的值
-- 本地运行时请确保 `.env` 文件安全，不要提交到版本控制系统
-
 ## 声明
 
-本项目使用了 GitHub Copilot。
+此项目使用了 GitHub Copilot。
