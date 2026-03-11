@@ -95,6 +95,8 @@ def build_option(
         subtext_prefix = "按月总编辑数"
 
     return {
+        "__WARNING__":
+        "!!! DON'T MODIFY THIS PAGE MANUALLY, YOUR CHANGES WILL BE OVERWRITTEN !!!",
         "title": {
             "text": f"{display_name}的编辑历史",
             "subtext": f"{subtext_prefix}\n（截至 {generated_time}）",

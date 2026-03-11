@@ -93,9 +93,7 @@ def _build_excluded_namespaces_text(excluded_namespaces: set[int]) -> str:
     return ("已排除：" + "、".join(preview_labels) + f" 等{len(sorted_ids)}个命名空间")
 
 
-def _build_series_style(
-    chart_series_type: str,
-) -> dict[str, Any]:
+def _build_series_style(chart_series_type: str, ) -> dict[str, Any]:
     if chart_series_type == "line":
         return {
             "showSymbol": False,
@@ -146,9 +144,7 @@ def build_option(
             },
             "data":
             namespace_month_counts.get(ns_id, [0] * len(x_labels)),
-            **_build_series_style(
-                chart_series_type=chart_series_type,
-            ),
+            **_build_series_style(chart_series_type=chart_series_type, ),
         })
 
     if merged_namespace_ids:
@@ -173,9 +169,7 @@ def build_option(
             },
             "data":
             other_data,
-            **_build_series_style(
-                chart_series_type=chart_series_type,
-            ),
+            **_build_series_style(chart_series_type=chart_series_type, ),
         })
 
     subtext = ("按月按命名空间统计\n"
@@ -183,6 +177,8 @@ def build_option(
                f"（截至 {generated_time}）")
 
     return {
+        "__WARNING__":
+        "!!! DON'T MODIFY THIS PAGE MANUALLY, YOUR CHANGES WILL BE OVERWRITTEN !!!",
         "title": {
             "text": f"{display_name}的编辑历史",
             "subtext": subtext,
