@@ -91,10 +91,9 @@ def parse_edit_tag_candidates(raw_value: str) -> list[str]:
         tag = token.strip()
         if not tag:
             continue
-        key = tag.casefold()
-        if key in seen:
+        if tag in seen:
             continue
-        seen.add(key)
+        seen.add(tag)
         candidates.append(tag)
 
     return candidates
@@ -110,6 +109,10 @@ def format_api_error(result: dict[str, Any]) -> str:
     return f"error.code={code!r}, error.info={info!r}, error={error}"
 
 
+def format_bot_flag(mark_as_bot: bool) -> str:
+    return "bot=1" if mark_as_bot else "bot=0"
+
+
 def main() -> None:
     wiki_api = (os.environ.get("WIKI_API", "").strip()
                 or os.environ.get("API_URL", "").strip())
@@ -118,7 +121,7 @@ def main() -> None:
     bot_password = os.environ.get("BOT_PASSWORD", "").strip()
     edit_tag_candidates_env = os.environ.get("EDIT_TAG_CANDIDATES")
     if edit_tag_candidates_env is None or not edit_tag_candidates_env.strip():
-        edit_tag_candidates_raw = "Bot"
+        edit_tag_candidates_raw = "bot, Bot"
     else:
         edit_tag_candidates_raw = edit_tag_candidates_env.strip()
     summary = os.environ.get(
@@ -221,10 +224,9 @@ def main() -> None:
     has_bot_group = isinstance(user_groups, list) and "bot" in user_groups
     if has_bot_group:
         assert_mode = "bot"
-
-    if not has_bot_group:
+    else:
         warn(f"用户 {bot_username or 'BOT_USERNAME'} 未持有机器人（bot）用户组；"
-             "仍会继续执行编辑。"
+             "仍会先尝试 bot=1 编辑。"
              "持续以非机器人权限执行自动化编辑可能导致被封禁。")
 
     try:
@@ -302,8 +304,9 @@ def main() -> None:
     success_attempt_context: str | None = None
 
     for attempt_index, (mark_as_bot, tags) in enumerate(attempts, start=1):
-        attempt_context = (f"attempt={attempt_index}/{len(attempts)}, "
-                           f"mark_as_bot={mark_as_bot}, tags={tags!r}")
+        bot_flag_text = format_bot_flag(mark_as_bot)
+        attempt_context = (f"attempt={attempt_index}, "
+                           f"{bot_flag_text}, tags={tags!r}")
         print(f"Edit attempt started: {attempt_context}")
         try:
             d5 = post_edit(
@@ -334,23 +337,16 @@ def main() -> None:
         if is_tag_error(d5) and tags:
             if not warned_tag_fallback:
                 warn("目标站点可能不支持部分变更标签；"
-                     "将自动回退到不带标签继续尝试。"
+                     "将以其他标签或不带标签继续尝试。"
                      f"失败详情：{error_text}")
                 warned_tag_fallback = True
             continue
 
         if is_bot_permission_error(d5) and mark_as_bot:
             if not warned_bot_fallback:
-                if has_bot_group:
-                    warn(f"用户 {bot_username or 'BOT_USERNAME'} 声明包含 bot 用户组，"
-                         "但标记此编辑为机器人编辑被拒绝；"
-                         "本次将继续提交但不标记此编辑为机器人编辑。"
-                         f"失败详情：{error_text}")
-                else:
-                    warn(f"用户 {bot_username or 'BOT_USERNAME'} 未持有 bot 用户组，"
-                         "本次 bot=1 编辑被拒绝，"
-                         "将回退到不带 bot 标记继续尝试。"
-                         f"失败详情：{error_text}")
+                warn(f"本次 bot=1 编辑被拒绝，"
+                     "将回退到不带 bot 标记继续尝试。"
+                     f"失败详情：{error_text}")
             warned_bot_fallback = True
             continue
 
@@ -361,9 +357,6 @@ def main() -> None:
             "last_response": d5,
             "attempt_logs": attempt_logs,
         })
-
-    if success_attempt_context is not None:
-        print(f"Final successful edit path: {success_attempt_context}")
 
     print("Wiki page updated successfully.")
 

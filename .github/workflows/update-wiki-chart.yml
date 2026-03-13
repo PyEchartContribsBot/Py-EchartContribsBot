@@ -15,12 +15,12 @@ jobs:
             DISPLAY_NAME: "${{ secrets.DISPLAY_NAME || vars.DISPLAY_NAME }}"
             EXCLUDED_NAMESPACES: "${{ vars.EXCLUDED_NAMESPACES }}"
             USER_AGENT: "${{ secrets.USER_AGENT || vars.USER_AGENT }}"
-            EDIT_TAG_CANDIDATES: "${{ vars.EDIT_TAG_CANDIDATES || 'Bot' }}"
+            EDIT_TAG_CANDIDATES: "${{ vars.EDIT_TAG_CANDIDATES || 'bot, Bot' }}"
             WIKI_API: "${{ vars.WIKI_API }}"
             WIKI_PAGE: "${{ secrets.WIKI_PAGE || vars.WIKI_PAGE }}"
             BOT_USERNAME: "${{ secrets.BOT_USERNAME }}"
             BOT_PASSWORD: "${{ secrets.BOT_PASSWORD }}"
-            SUMMARY: "${{ github.event_name == 'workflow_dispatch' && 'Semiautomatic edit operated by a human user' || 'Automated update datapage for the contribution ECharts (JSON)' }}"
+            SUMMARY: "${{ github.event_name == 'workflow_dispatch' && '半自动更新用户贡献 Echart 所用的 JSON 数据页面（手动触发）' || '自动更新用户贡献 Echart 所用的 JSON 数据页面' }}"
 
     steps:
       - name: Checkout

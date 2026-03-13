@@ -92,8 +92,8 @@
   - 默认 `bar`：直方图
   - `line`：折线图（堆叠样式下会带面积填充）
 - `EDIT_TAG_CANDIDATES`
-  - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`Bot`
-  - 默认值：`Bot`
+  - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`bot, Bot`
+  - 默认值：`bot, Bot`
   - 留空时不尝试任何 `tags`，仅执行无标签编辑
 
 > Workflow 兼容策略：`WIKI_USER` / `DISPLAY_NAME` / `USER_AGENT` / `WIKI_PAGE` 均为 **Secrets 优先，并支持 Variables**，可按实际情况选择。
@@ -147,11 +147,14 @@
   1. 获取 login token
   2. 登录
   3. 查询当前登录用户组（`meta=userinfo&uiprop=groups`）
+    - 若 `BOT_USERNAME` 不具备 `(bot)` 用户组，workflow 会先给出警告并继续执行
+    - 这表示当前账号并非机器人账号，长期持续自动编辑可能违反站点策略并导致被封禁
   4. 获取 csrf token
   5. 优先使用 `action=edit` 的 `bot=1` 标记覆盖页面内容
-    - 若 `BOT_USERNAME` 不具备 `(bot)` 用户组，workflow 会先给出警告并继续执行；带 bot 标记失败时会自动回退为普通编辑
-     - 这表示当前账号并非机器人账号，长期持续自动编辑可能违反站点策略并导致被封禁
-    - 变更标签由 `EDIT_TAG_CANDIDATES` 控制（默认：`Bot`），会按顺序尝试；若站点不支持会自动回退为不带标签
+    - 即使上一步确认当前账号不具备 `(bot)` 用户组，也仍会统一先尝试 `bot=1`
+    - 若目标站点明确拒绝带 bot 标记的编辑，workflow 会自动回退为普通编辑
+    - 通常 MediaWiki 站点即使账号缺少 `(bot)` 用户组，也不会因 `bot=1` 直接报错，仅会不应用该标记
+    - 变更标签由 `EDIT_TAG_CANDIDATES` 控制（默认：`bot, Bot`），会按顺序尝试；若站点不支持会自动回退为不带标签
 - 如果页面内容未变化，自动跳过编辑
 - 失败时输出错误信息
 
