@@ -114,11 +114,8 @@
   - 若 `WIKI_USER` 包含多个用户（以 `|` 或 `%7C` 分隔），只使用第一个用户作为 `DISPLAY_NAME`
 
 **注意：**
-- API 地址支持两种变量名：`WIKI_API`（推荐）或 `API_URL`（兼容旧配置），任意一个即可
-- `WIKI_USER` 从环境变量读取，在 Actions 中会自动使用 Secrets/Variables 配置
-- `EXCLUDED_NAMESPACES` 也支持从 Variables/.env 读取（逗号分隔整数）
-- `CHART_STYLE`、`NAMESPACE_MODE`、`TOP_NAMESPACE_LIMIT` 与 `CHART_SERIES_TYPE` 也支持从 Variables/.env 读取
-- `USER_AGENT` 也可通过 Variables 统一配置（`vars.USER_AGENT`）
+- 以上变量均通过环境变量读取，在 Actions 中配置对应 Secrets/Variables 即可
+- `USER_AGENT` 可通过 `vars.USER_AGENT` 统一配置；若含私人联系信息，建议改放 Secrets
 - 建议设置有意义的 `User-Agent`（包含项目标识与联系方式）
 
 ## 图表行为
@@ -194,7 +191,7 @@ python publish_chart_json.py
 
 本地执行 `publish_chart_json.py` 时，请确保 `.env` 或系统环境中已设置 `WIKI_API`、`WIKI_PAGE`、`BOT_USERNAME`、`BOT_PASSWORD`；可选设置 `EDIT_TAG_CANDIDATES`。
 
-说明：`generate_chart_json.py` 与 `publish_chart_json.py` 都支持读取 `WIKI_API` 或 `API_URL`；推荐统一使用 `WIKI_API`，这样本地只需配置一次 API 地址。
+说明：`generate_chart_json.py` 与 `publish_chart_json.py` 均读取 `WIKI_API`。
 
 ## 首次验证建议
 
