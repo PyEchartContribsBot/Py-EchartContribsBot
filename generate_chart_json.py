@@ -87,9 +87,7 @@ def _extract_first_user(user_str: str) -> str:
 
 
 # ===== 可配置参数 =====
-# 兼容两种变量名：优先 API_URL，其次 WIKI_API（便于与上传脚本统一配置）
-API_URL: str = (os.environ.get("API_URL", "").strip()
-                or os.environ.get("WIKI_API", "").strip())  # 必填：目标站点 API
+WIKI_API: str = os.environ.get("WIKI_API", "").strip()  # 必填：目标站点 API
 USER: str = os.environ.get("WIKI_USER", "").strip()  # 必填：统计目标用户名
 DISPLAY_NAME: str = os.environ.get("DISPLAY_NAME",
                                    "").strip() or _extract_first_user(
@@ -121,8 +119,8 @@ USERCONTRIBS_FALLBACK_LIMIT: str = "499"
 
 def _validate_required_config() -> None:
     missing: list[str] = []
-    if not API_URL:
-        missing.append("API_URL/WIKI_API")
+    if not WIKI_API:
+        missing.append("WIKI_API")
     if not USER:
         missing.append("WIKI_USER")
     if missing:
@@ -292,7 +290,7 @@ def main() -> None:
     """主流程：抓取、过滤、聚合、生成并写出 JSON。"""
     try:
         _validate_required_config()
-        all_contribs = fetch_all_contribs(API_URL, USER)
+        all_contribs = fetch_all_contribs(WIKI_API, USER)
         resolved_excluded_namespaces = _resolve_excluded_namespaces(
             all_contribs,
             EXCLUDED_NAMESPACES,

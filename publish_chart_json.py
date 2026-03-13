@@ -114,8 +114,7 @@ def format_bot_flag(mark_as_bot: bool) -> str:
 
 
 def main() -> None:
-    wiki_api = (os.environ.get("WIKI_API", "").strip()
-                or os.environ.get("API_URL", "").strip())
+    wiki_api = os.environ.get("WIKI_API", "").strip()
     wiki_page = os.environ.get("WIKI_PAGE", "").strip()
     bot_username = os.environ.get("BOT_USERNAME", "").strip()
     bot_password = os.environ.get("BOT_PASSWORD", "").strip()
@@ -134,7 +133,7 @@ def main() -> None:
     ).strip()
 
     if not wiki_api:
-        fail("Missing WIKI_API/API_URL (set repository variable or env)")
+        fail("Missing WIKI_API (set repository variable or env)")
     if not wiki_page:
         fail("Missing WIKI_PAGE (set repository variable or env)")
     if not bot_username:
