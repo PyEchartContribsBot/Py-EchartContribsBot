@@ -44,3 +44,6 @@ echart_option.json
 .env
 .env.*
 !.env.example
+
+# VS Code workspace
+*.code-workspace
