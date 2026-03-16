@@ -42,6 +42,8 @@ def post_edit(
         "token": csrf_token,
         "summary": summary,
         "format": "json",
+        "contentmodel": "json",
+        "contentformat": "application/json",
         "assert": assert_mode,
         "maxlag": max_lag,
     }
@@ -130,10 +132,8 @@ def main() -> None:
         edit_tag_candidates_raw = "bot, Bot"
     else:
         edit_tag_candidates_raw = edit_tag_candidates_env.strip()
-    summary = os.environ.get(
-        "SUMMARY",
-        "Automated update datapage for the contribution ECharts (JSON)").strip(
-        )
+    summary = os.environ.get("SUMMARY",
+                             "自动更新用户贡献 Echart 所用的 JSON 数据页面").strip()
     user_agent = os.environ.get(
         "USER_AGENT",
         DEFAULT_USER_AGENT,
