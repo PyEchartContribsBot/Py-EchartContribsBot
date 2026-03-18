@@ -9,8 +9,13 @@ from typing import Any
 
 import requests
 from chart_styles import build_option_for_style, parse_chart_style
-from mw_runtime import DEFAULT_USER_AGENT, build_session, load_env_file, safe_get_json
-from requests.exceptions import RequestException
+from mw_runtime import (
+    DEFAULT_USER_AGENT,
+    api_get_json,
+    build_session,
+    load_env_file,
+    login_with_bot_password,
+)
 
 load_env_file()
 
@@ -75,15 +80,8 @@ def _extract_first_user(user_str: str) -> str:
     if not user_str:
         return user_str
 
-    # 检查管道符 |（未编码）
-    if '|' in user_str:
-        return user_str.split('|')[0].strip()
-
-    # 检查管道符 %7C（URL编码）
-    if '%7C' in user_str:
-        return user_str.split('%7C')[0].strip()
-
-    return user_str
+    delimiter = next((item for item in ("|", "%7C") if item in user_str), None)
+    return user_str.split(delimiter)[0].strip() if delimiter else user_str
 
 
 # ===== 可配置参数 =====
@@ -133,48 +131,16 @@ def _login_if_configured(session: requests.Session, api_url: str) -> None:
         return
 
     try:
-        token_response = session.get(
-            api_url,
-            params={
-                "action": "query",
-                "meta": "tokens",
-                "type": "login",
-                "format": "json",
-                "maxlag": MAX_LAG,
-            },
+        login_with_bot_password(
+            session=session,
+            wiki_api=api_url,
+            bot_username=BOT_LOGIN_USERNAME,
+            bot_password=BOT_LOGIN_PASSWORD,
             timeout=REQUEST_TIMEOUT_SECONDS,
+            max_lag=MAX_LAG,
         )
-        token_response.raise_for_status()
-        token_data = safe_get_json(token_response)
-    except RequestException as exc:
-        raise RuntimeError(f"获取登录 token 失败: {exc}") from exc
-
-    login_token = token_data.get("query", {}).get("tokens",
-                                                  {}).get("logintoken")
-    if not isinstance(login_token, str) or not login_token:
-        raise RuntimeError("获取登录 token 失败: 响应中缺少 logintoken")
-
-    try:
-        login_response = session.post(
-            api_url,
-            data={
-                "action": "login",
-                "lgname": BOT_LOGIN_USERNAME,
-                "lgpassword": BOT_LOGIN_PASSWORD,
-                "lgtoken": login_token,
-                "format": "json",
-                "maxlag": MAX_LAG,
-            },
-            timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-        login_response.raise_for_status()
-        login_data = safe_get_json(login_response)
-    except RequestException as exc:
-        raise RuntimeError(f"登录请求失败: {exc}") from exc
-
-    login_result = login_data.get("login", {}).get("result")
-    if login_result != "Success":
-        raise RuntimeError(f"API 登录失败: {login_data}")
+    except RuntimeError as exc:
+        raise RuntimeError(f"API 登录失败: {exc}") from exc
 
 
 def fetch_all_contribs(api_url: str, user: str) -> list[dict[str, Any]]:
@@ -199,16 +165,15 @@ def fetch_all_contribs(api_url: str, user: str) -> list[dict[str, Any]]:
         request_params = {**params, **continue_params}
 
         try:
-            response = session.get(
-                api_url,
+            data = api_get_json(
+                session=session,
+                wiki_api=api_url,
                 params=request_params,
                 timeout=REQUEST_TIMEOUT_SECONDS,
+                error_context="请求 MediaWiki API 失败",
             )
-            response.raise_for_status()
-        except RequestException as exc:
-            raise RuntimeError(f"请求 MediaWiki API 失败: {exc}") from exc
-
-        data = safe_get_json(response)
+        except RuntimeError as exc:
+            raise RuntimeError(str(exc)) from exc
 
         if "error" in data:
             api_error = data["error"]

@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import os
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 import requests
-from mw_runtime import DEFAULT_USER_AGENT, build_session, load_env_file, safe_get_json
+from mw_runtime import (
+    DEFAULT_USER_AGENT,
+    api_get_json,
+    api_post_json,
+    build_session,
+    get_csrf_token,
+    get_user_groups,
+    load_env_file,
+    login_with_bot_password,
+)
 
 load_env_file()
 
@@ -20,6 +30,20 @@ def fail(message: str, detail: Any = None) -> None:
 
 def warn(message: str) -> None:
     print(f"::warning::{message}")
+
+
+@dataclass(frozen=True)
+class PublishConfig:
+    wiki_api: str
+    wiki_page: str
+    bot_username: str
+    bot_password: str
+    edit_tag_candidates_raw: str
+    summary: str
+    user_agent: str
+    content_path: str = "echart_option.json"
+    timeout: int = 30
+    max_lag: int = 5
 
 
 def post_edit(
@@ -52,13 +76,13 @@ def post_edit(
     if tags:
         payload["tags"] = tags
 
-    response = session.post(
-        wiki_api,
+    return api_post_json(
+        session=session,
+        wiki_api=wiki_api,
         data=payload,
         timeout=timeout,
+        error_context="Edit request failed",
     )
-    response.raise_for_status()
-    return response.json()
 
 
 def is_bot_permission_error(result: dict[str, Any]) -> bool:
@@ -86,19 +110,9 @@ def is_tag_error(result: dict[str, Any]) -> bool:
 
 
 def parse_edit_tag_candidates(raw_value: str) -> list[str]:
-    candidates: list[str] = []
-    seen: set[str] = set()
-
-    for token in raw_value.split(","):
-        tag = token.strip()
-        if not tag:
-            continue
-        if tag in seen:
-            continue
-        seen.add(tag)
-        candidates.append(tag)
-
-    return candidates
+    # Preserve input order while removing empty and duplicate tags.
+    stripped_tags = (token.strip() for token in raw_value.split(","))
+    return list(dict.fromkeys(tag for tag in stripped_tags if tag))
 
 
 def format_api_error(result: dict[str, Any]) -> str:
@@ -122,33 +136,20 @@ def format_bot_flag(mark_as_bot: bool) -> str:
     return "bot=1" if mark_as_bot else "bot=0"
 
 
-def main() -> None:
-    wiki_api = os.environ.get("WIKI_API", "").strip()
-    wiki_page = os.environ.get("WIKI_PAGE", "").strip()
-    bot_username = os.environ.get("BOT_USERNAME", "").strip()
-    bot_password = os.environ.get("BOT_PASSWORD", "").strip()
-    edit_tag_candidates_env = os.environ.get("EDIT_TAG_CANDIDATES")
-    if edit_tag_candidates_env is None or not edit_tag_candidates_env.strip():
-        edit_tag_candidates_raw = "bot, Bot"
-    else:
-        edit_tag_candidates_raw = edit_tag_candidates_env.strip()
-    summary = os.environ.get("SUMMARY",
-                             "自动更新用户贡献 Echart 所用的 JSON 数据页面").strip()
-    user_agent = os.environ.get(
-        "USER_AGENT",
-        DEFAULT_USER_AGENT,
-    ).strip()
+def get_trimmed_env(name: str, default: str = "") -> str:
+    return os.environ.get(name, default).strip()
 
-    if not wiki_api:
-        fail("Missing WIKI_API (set repository variable or env)")
-    if not wiki_page:
-        fail("Missing WIKI_PAGE (set repository variable or env)")
-    if not bot_username:
-        fail("Missing BOT_USERNAME secret")
-    if not bot_password:
-        fail("Missing BOT_PASSWORD secret")
 
-    content_path = "echart_option.json"
+def resolve_edit_tag_candidates_raw() -> str:
+    value = os.environ.get("EDIT_TAG_CANDIDATES")
+    if value is None:
+        return "bot, Bot"
+
+    trimmed = value.strip()
+    return trimmed or "bot, Bot"
+
+
+def read_local_chart_option(content_path: str) -> str:
     if not os.path.exists(content_path):
         fail(
             "echart_option.json not found; ensure generate_chart_json.py generated it"
@@ -156,158 +157,148 @@ def main() -> None:
 
     try:
         with open(content_path, "r", encoding="utf-8") as file:
-            new_text = file.read()
+            return file.read()
     except Exception as exc:
         fail("Failed to read echart_option.json", str(exc))
 
-    session = build_session(user_agent)
-    timeout = 30
-    max_lag = 5
+
+def build_edit_attempts(
+    edit_tag_candidates: list[str],
+) -> list[tuple[bool, str | None]]:
+    tags_by_priority: list[str | None] = [*edit_tag_candidates, None]
+    return [
+        (mark_as_bot, tags)
+        for mark_as_bot in (True, False)
+        for tags in tags_by_priority
+    ]
+
+
+def load_publish_config() -> PublishConfig:
+    return PublishConfig(
+        wiki_api=get_trimmed_env("WIKI_API"),
+        wiki_page=get_trimmed_env("WIKI_PAGE"),
+        bot_username=get_trimmed_env("BOT_USERNAME"),
+        bot_password=get_trimmed_env("BOT_PASSWORD"),
+        edit_tag_candidates_raw=resolve_edit_tag_candidates_raw(),
+        summary=get_trimmed_env("SUMMARY", "自动更新用户贡献 Echart 所用的 JSON 数据页面"),
+        user_agent=get_trimmed_env("USER_AGENT", DEFAULT_USER_AGENT),
+    )
+
+
+def validate_publish_config(config: PublishConfig) -> None:
+    if not config.wiki_api:
+        fail("Missing WIKI_API (set repository variable or env)")
+    if not config.wiki_page:
+        fail("Missing WIKI_PAGE (set repository variable or env)")
+    if not config.bot_username:
+        fail("Missing BOT_USERNAME secret")
+    if not config.bot_password:
+        fail("Missing BOT_PASSWORD secret")
+
+
+def login_or_fail(session: requests.Session, config: PublishConfig) -> None:
+    try:
+        login_with_bot_password(
+            session=session,
+            wiki_api=config.wiki_api,
+            bot_username=config.bot_username,
+            bot_password=config.bot_password,
+            timeout=config.timeout,
+            max_lag=config.max_lag,
+        )
+    except RuntimeError as exc:
+        fail("Login failed", str(exc))
+
+
+def resolve_assert_mode(session: requests.Session, config: PublishConfig) -> str:
     assert_mode = "user"
-
     try:
-        r1 = session.get(
-            wiki_api,
-            params={
-                "action": "query",
-                "meta": "tokens",
-                "type": "login",
-                "format": "json",
-                "maxlag": max_lag,
-            },
-            timeout=timeout,
+        user_groups = get_user_groups(
+            session=session,
+            wiki_api=config.wiki_api,
+            timeout=config.timeout,
+            max_lag=config.max_lag,
+            assert_mode=assert_mode,
         )
-        r1.raise_for_status()
-        d1 = safe_get_json(r1)
-    except Exception as exc:
-        fail("Failed to fetch login token", str(exc))
-
-    login_token = d1.get("query", {}).get("tokens", {}).get("logintoken")
-    if not login_token:
-        fail("Login token missing", d1)
-
-    try:
-        r2 = session.post(
-            wiki_api,
-            data={
-                "action": "login",
-                "lgname": bot_username,
-                "lgpassword": bot_password,
-                "lgtoken": login_token,
-                "format": "json",
-                "maxlag": max_lag,
-            },
-            timeout=timeout,
-        )
-        r2.raise_for_status()
-        d2 = safe_get_json(r2)
-    except Exception as exc:
-        fail("Login request failed", str(exc))
-
-    login_result = d2.get("login", {}).get("result")
-    if login_result != "Success":
-        fail("Login failed", d2)
-
-    try:
-        r_user = session.get(
-            wiki_api,
-            params={
-                "action": "query",
-                "meta": "userinfo",
-                "uiprop": "groups",
-                "format": "json",
-                "assert": assert_mode,
-                "maxlag": max_lag,
-            },
-            timeout=timeout,
-        )
-        r_user.raise_for_status()
-        d_user = safe_get_json(r_user)
-    except Exception as exc:
+    except RuntimeError as exc:
         fail("Failed to fetch user groups", str(exc))
 
-    user_groups = d_user.get("query", {}).get("userinfo", {}).get("groups", [])
-    has_bot_group = isinstance(user_groups, list) and "bot" in user_groups
+    has_bot_group = "bot" in user_groups
     if has_bot_group:
-        assert_mode = "bot"
-    else:
-        warn(f"用户 {bot_username or 'BOT_USERNAME'} 未持有机器人（bot）用户组；"
-             "仍会先尝试 bot=1 编辑。"
-             "持续以非机器人权限执行自动化编辑可能导致被封禁。")
+        return "bot"
 
+    warn(f"用户 {config.bot_username or 'BOT_USERNAME'} 未持有机器人（bot）用户组；"
+         "仍会先尝试 bot=1 编辑。"
+         "持续以非机器人权限执行自动化编辑可能导致被封禁。")
+    return assert_mode
+
+
+def get_csrf_token_or_fail(
+    session: requests.Session,
+    config: PublishConfig,
+    assert_mode: str,
+) -> str:
     try:
-        r3 = session.get(
-            wiki_api,
-            params={
-                "action": "query",
-                "meta": "tokens",
-                "format": "json",
-                "assert": assert_mode,
-                "maxlag": max_lag,
-            },
-            timeout=timeout,
+        return get_csrf_token(
+            session=session,
+            wiki_api=config.wiki_api,
+            timeout=config.timeout,
+            max_lag=config.max_lag,
+            assert_mode=assert_mode,
         )
-        r3.raise_for_status()
-        d3 = safe_get_json(r3)
-    except Exception as exc:
+    except RuntimeError as exc:
         fail("Failed to fetch CSRF token", str(exc))
 
-    csrf_token = d3.get("query", {}).get("tokens", {}).get("csrftoken")
-    if not csrf_token:
-        fail("CSRF token missing", d3)
 
+def fetch_current_page_content(
+    session: requests.Session,
+    config: PublishConfig,
+    assert_mode: str,
+) -> str:
     try:
-        r4 = session.get(
-            wiki_api,
+        data = api_get_json(
+            session=session,
+            wiki_api=config.wiki_api,
             params={
                 "action": "query",
                 "prop": "revisions",
-                "titles": wiki_page,
+                "titles": config.wiki_page,
                 "rvslots": "main",
                 "rvprop": "content",
                 "format": "json",
                 "formatversion": "2",
                 "assert": assert_mode,
-                "maxlag": max_lag,
+                "maxlag": config.max_lag,
             },
-            timeout=timeout,
+            timeout=config.timeout,
+            error_context="Failed to fetch current page content",
         )
-        r4.raise_for_status()
-        d4 = safe_get_json(r4)
-    except Exception as exc:
+    except RuntimeError as exc:
         fail("Failed to fetch current page content", str(exc))
 
-    pages = d4.get("query", {}).get("pages", [])
-    current_text = ""
-    if isinstance(pages, list) and pages:
-        revs = pages[0].get("revisions", [])
-        if revs and isinstance(revs, list):
-            current_text = revs[0].get("slots", {}).get("main",
-                                                        {}).get("content", "")
+    pages = data.get("query", {}).get("pages", [])
+    if not isinstance(pages, list) or not pages:
+        return ""
 
-    if current_text == new_text:
-        print("No content changes detected; skip edit.")
-        raise SystemExit(0)
+    revisions = pages[0].get("revisions", [])
+    if not isinstance(revisions, list) or not revisions:
+        return ""
 
-    edit_tag_candidates = parse_edit_tag_candidates(edit_tag_candidates_raw)
-    print(
-        f"Edit tag candidates: {edit_tag_candidates!r}  (raw: {edit_tag_candidates_raw!r})"
-    )
-    if not edit_tag_candidates:
-        warn("未解析到任何可用编辑标签；本次不会发送 tags 参数。"
-             "请检查 EDIT_TAG_CANDIDATES 是否为空。")
+    return revisions[0].get("slots", {}).get("main", {}).get("content", "")
 
-    attempts: list[tuple[bool, str | None]] = []
-    for mark_as_bot in (True, False):
-        for tags in edit_tag_candidates:
-            attempts.append((mark_as_bot, tags))
-        attempts.append((mark_as_bot, None))
 
+def try_edit_with_fallbacks(
+    session: requests.Session,
+    config: PublishConfig,
+    assert_mode: str,
+    csrf_token: str,
+    new_text: str,
+    attempts: list[tuple[bool, str | None]],
+) -> None:
     d5: dict[str, Any] = {}
     warned_bot_fallback = False
     warned_tag_fallback = False
     attempt_logs: list[str] = []
-    success_attempt_context: str | None = None
 
     for attempt_index, (mark_as_bot, tags) in enumerate(attempts, start=1):
         bot_flag_text = format_bot_flag(mark_as_bot)
@@ -317,24 +308,24 @@ def main() -> None:
         try:
             d5 = post_edit(
                 session=session,
-                wiki_api=wiki_api,
-                wiki_page=wiki_page,
+                wiki_api=config.wiki_api,
+                wiki_page=config.wiki_page,
                 new_text=new_text,
                 csrf_token=csrf_token,
-                timeout=timeout,
-                max_lag=max_lag,
+                timeout=config.timeout,
+                max_lag=config.max_lag,
                 assert_mode=assert_mode,
                 mark_as_bot=mark_as_bot,
                 tags=tags,
-                summary=summary,
+                summary=config.summary,
             )
-        except Exception as exc:
+        except RuntimeError as exc:
             fail(f"Edit request failed ({attempt_context})", str(exc))
 
         if d5.get("edit", {}).get("result") == "Success":
-            success_attempt_context = attempt_context
             print(f"Edit attempt succeeded: {attempt_context}")
-            break
+            print("Wiki page updated successfully.")
+            return
 
         error_text = format_api_error(d5)
         attempt_logs.append(f"{attempt_context}; {error_text}")
@@ -353,18 +344,50 @@ def main() -> None:
                 warn(f"本次 bot=1 编辑被拒绝，"
                      "将回退到不带 bot 标记继续尝试。"
                      f"失败详情：{error_text}")
-            warned_bot_fallback = True
+                warned_bot_fallback = True
             continue
 
         fail("Wiki edit failed", d5)
 
-    if d5.get("edit", {}).get("result") != "Success":
-        fail("Wiki edit failed after all fallbacks", {
-            "last_response": d5,
-            "attempt_logs": attempt_logs,
-        })
+    fail("Wiki edit failed after all fallbacks", {
+        "last_response": d5,
+        "attempt_logs": attempt_logs,
+    })
 
-    print("Wiki page updated successfully.")
+
+def main() -> None:
+    config = load_publish_config()
+    validate_publish_config(config)
+
+    new_text = read_local_chart_option(config.content_path)
+    session = build_session(config.user_agent)
+
+    login_or_fail(session, config)
+    assert_mode = resolve_assert_mode(session, config)
+    csrf_token = get_csrf_token_or_fail(session, config, assert_mode)
+    current_text = fetch_current_page_content(session, config, assert_mode)
+
+    if current_text == new_text:
+        print("No content changes detected; skip edit.")
+        raise SystemExit(0)
+
+    edit_tag_candidates = parse_edit_tag_candidates(config.edit_tag_candidates_raw)
+    print(
+        f"Edit tag candidates: {edit_tag_candidates!r}  (raw: {config.edit_tag_candidates_raw!r})"
+    )
+    if not edit_tag_candidates:
+        warn("未解析到任何可用编辑标签；本次不会发送 tags 参数。"
+             "请检查 EDIT_TAG_CANDIDATES 是否为空。")
+
+    attempts = build_edit_attempts(edit_tag_candidates)
+    try_edit_with_fallbacks(
+        session=session,
+        config=config,
+        assert_mode=assert_mode,
+        csrf_token=csrf_token,
+        new_text=new_text,
+        attempts=attempts,
+    )
 
 
 if __name__ == "__main__":
