@@ -100,7 +100,7 @@ TOP_NAMESPACE_LIMIT: int = _parse_top_namespace_limit(
 CHART_SERIES_TYPE: str = _parse_chart_series_type(
     os.environ.get("CHART_SERIES_TYPE", "bar"))  # 仅控制初始 series.type
 CHART_STYLE = parse_chart_style(
-    os.environ.get("CHART_STYLE", "namespace_stacked"))
+    os.environ.get("CHART_STYLE", "namespace"))
 OUTPUT_FILE: str = "echart_option.json"
 REQUEST_TIMEOUT_SECONDS: int = 30
 

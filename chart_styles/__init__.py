@@ -2,22 +2,22 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from chart_styles.monthly_total_style import build_option as build_monthly_total_option
-from chart_styles.namespace_stacked_style import build_option as build_namespace_stacked_option
+from chart_styles.sum_style import build_option as build_sum_option
+from chart_styles.namespace_style import build_option as build_namespace_option
 
-ChartStyle = Literal["namespace_stacked", "monthly_total"]
+ChartStyle = Literal["namespace", "sum"]
 
-_SUPPORTED_CHART_STYLES: set[str] = {"namespace_stacked", "monthly_total"}
+_SUPPORTED_CHART_STYLES: set[str] = {"namespace", "sum"}
 
 
 def parse_chart_style(raw_value: str) -> ChartStyle:
     value = raw_value.strip().lower()
     if not value:
-        return "namespace_stacked"
+        return "namespace"
     if value not in _SUPPORTED_CHART_STYLES:
         raise RuntimeError(
-            "环境变量 CHART_STYLE 仅支持 namespace_stacked 或 monthly_total，"
-            "例如 CHART_STYLE=namespace_stacked")
+            "环境变量 CHART_STYLE 仅支持 namespace 或 sum，"
+            "例如 CHART_STYLE=namespace")
     return value  # type: ignore[return-value]
 
 
@@ -31,8 +31,8 @@ def build_option_for_style(
     namespace_mode: str,
     top_namespace_limit: int,
 ) -> dict[str, Any]:
-    if chart_style == "monthly_total":
-        return build_monthly_total_option(
+    if chart_style == "sum":
+        return build_sum_option(
             display_name=display_name,
             contribs=contribs,
             generated_time=generated_time,
@@ -42,7 +42,7 @@ def build_option_for_style(
             top_namespace_limit=top_namespace_limit,
         )
 
-    return build_namespace_stacked_option(
+    return build_namespace_option(
         display_name=display_name,
         contribs=contribs,
         generated_time=generated_time,

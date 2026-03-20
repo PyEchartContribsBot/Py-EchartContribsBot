@@ -84,9 +84,9 @@
   - 可选，正整数，默认 `10`
   - 仅在 `NAMESPACE_MODE=top` 时生效
 - `CHART_STYLE`
-  - 可选，`namespace_stacked` 或 `monthly_total`
-  - 默认 `namespace_stacked`：按命名空间堆叠
-  - `monthly_total`：按月总贡献（单序列）
+  - 可选，`namespace` 或 `sum`
+  - 默认 `namespace`：按命名空间堆叠
+  - `sum`：按月总贡献（单序列）
 - `CHART_SERIES_TYPE`
   - 可选，`bar` （直方图）或 `line`（折线图）
   - 仅控制图表初始展示类型（默认 `bar`）
@@ -105,7 +105,7 @@
 推荐通过环境变量配置，无需修改 `generate_chart_json.py` 源码：
 
 - `EXCLUDED_NAMESPACES`：排除命名空间（逗号分隔整数；留空时自动排除 `ns=2`(用户) 与奇数命名空间（讨论页））
-- `CHART_STYLE`：图表方案（`namespace_stacked` 或 `monthly_total`，默认 `namespace_stacked`）
+- `CHART_STYLE`：图表方案（`namespace` 或 `sum`，默认 `namespace`）
 - `NAMESPACE_MODE`：命名空间序列展示策略（`top` 或 `all`）
 - `TOP_NAMESPACE_LIMIT`：Top 命名空间数量（正整数，默认 `10`）
 - `CHART_SERIES_TYPE`：图表初始系列类型（`bar` 或 `line`，默认 `bar`）
@@ -120,12 +120,12 @@
 
 ## 图表行为
 
-- `CHART_STYLE=namespace_stacked`（默认）
+- `CHART_STYLE=namespace`（默认）
   - 输出按月命名空间堆叠图
   - `CHART_SERIES_TYPE` 仅决定初始 `series.type`，后续可通过 `magicType` 在 `line/bar` 间切换
   - 每个系列默认使用 `{{ns:命名空间数字}}` 作为名称，便于 wiki 侧解析本地化命名空间名
   - 当命名空间较多时，默认启用 `Top N + Other`，降低 legend 拥挤风险
-- `CHART_STYLE=monthly_total`
+- `CHART_STYLE=sum`
   - 输出按月总贡献图（单序列）
   - `CHART_SERIES_TYPE` 仅决定初始 `series.type`，后续可通过 `magicType` 在 `line/bar` 间切换
 
