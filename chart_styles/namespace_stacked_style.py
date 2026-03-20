@@ -44,20 +44,19 @@ def _group_by_month_and_namespace(
             month = 1
             year += 1
 
-    namespace_month_counts: dict[int, list[int]] = {}
-    for ns_id in namespace_totals:
-        namespace_month_counts[ns_id] = [
+    namespace_month_counts: dict[int, list[int]] = {
+        ns_id: [
             monthly_namespace_counter.get((year, month, ns_id), 0)
             for year, month in full_months
         ]
+        for ns_id in namespace_totals
+    }
 
     return full_months, namespace_month_counts, dict(namespace_totals)
 
 
 def _build_namespace_name(ns_id: int) -> str:
-    if ns_id == 0:
-        return "（主）"
-    return f"{{{{ns:{ns_id}}}}}"
+    return "（主）" if ns_id == 0 else f"{{{{ns:{ns_id}}}}}"
 
 
 def _select_series_namespaces(
