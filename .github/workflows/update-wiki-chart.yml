@@ -18,6 +18,8 @@ jobs:
       TOP_NAMESPACE_LIMIT: "${{ vars.TOP_NAMESPACE_LIMIT }}"
       CHART_SORT_MODE: "${{ vars.CHART_SORT_MODE }}"
       CHART_SERIES_TYPE: "${{ vars.CHART_SERIES_TYPE }}"
+      ACCOUNT_REG_MARKER_ENABLED: "${{ vars.ACCOUNT_REG_MARKER_ENABLED }}"
+      ACCOUNT_REG_MARKER_OUT_OF_RANGE: "${{ vars.ACCOUNT_REG_MARKER_OUT_OF_RANGE }}"
       USER_AGENT: "${{ secrets.USER_AGENT || vars.USER_AGENT }}"
       EDIT_TAG_CANDIDATES: "${{ vars.EDIT_TAG_CANDIDATES || 'bot, Bot' }}"
       WIKI_API: "${{ vars.WIKI_API }}"

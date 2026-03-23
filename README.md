@@ -85,13 +85,20 @@
   - 可选，正整数，默认 `10`
   - 仅在 `NAMESPACE_MODE=top` 时生效
 - `CHART_SORT_MODE`
-  - 可选，`namespace` 或 `sum`
+  - 可选，`namespace`、`sum` 或 `account`
   - 默认 `namespace`：按命名空间堆叠
   - `sum`：按月总贡献（单序列）
+  - `account`：按月账户堆叠（多用户模式）
 - `CHART_SERIES_TYPE`
   - 可选，`bar` （直方图）或 `line`（折线图）
   - 仅控制图表初始展示类型（默认 `bar`）
   - 图表内通过 `magicType` 在 `line/bar` 切换时会沿用统一样式配置
+- `ACCOUNT_REG_MARKER_ENABLED`
+  - 可选，`true` 或 `false`
+  - 默认 `false`：是否启用注册时间标记（全模式可用）
+- `ACCOUNT_REG_MARKER_OUT_OF_RANGE`
+  - 可选，`clamp_to_first` 或 `hide`
+  - 默认 `clamp_to_first`：注册时间早于统计区间时的处理策略
 - `EDIT_TAG_CANDIDATES`
   - 可选，逗号分隔标签候选列表，按顺序尝试，例如：`bot, Bot`
   - 默认值：`bot, Bot`
@@ -100,31 +107,6 @@
 > Workflow 兼容策略：`WIKI_USER` / `DISPLAY_NAME` / `USER_AGENT` / `WIKI_PAGE` 均为 **Secrets 优先，并支持 Variables**，可按实际情况选择。
 
 > 仓库可见性提示：将仓库设为 Public 通常可减少（或避免）GitHub Actions Minutes 的消耗；具体以 GitHub 当前计费政策为准。
-
-## generate_chart_json.py 配置（可选）
-
-推荐通过环境变量配置，无需修改 `generate_chart_json.py` 源码：
-
-- `EXCLUDED_NAMESPACES`：排除命名空间
-  - 留空或不设置：自动排除 `ns=2`(用户) 与奇数命名空间（讨论页）
-  - 设置 `false`/`null`/`none`：不排除任何命名空间
-  - 逗号分隔整数：指定排除的命名空间，例如 `1,2,3,5,7,9`
-- `CHART_SORT_MODE`：图表方案（`namespace`、`sum` 或 `account`，默认 `namespace`）
-- `NAMESPACE_MODE`：命名空间序列展示策略（`top` 或 `all`，仅用于 `namespace` 模式）
-- `TOP_NAMESPACE_LIMIT`：Top 展示的命名空间数量（正整数，默认 `10`，仅用于 `namespace` 模式）
-- `CHART_SERIES_TYPE`：图表初始系列类型（`bar` 或 `line`，默认 `bar`）
-- `ACCOUNT_REG_MARKER_ENABLED`：注册时间标记开关（`true` 或 `false`，默认 `false`）
-- `ACCOUNT_REG_MARKER_OUT_OF_RANGE`：越界标记处理策略（）
-  - `clamp_to_first`（默认）：将越界标记钳制到首个可见月
-  - `hide`：不显示越界标记
-- `USER_AGENT`：建议通过环境变量配置（**重要！**）
-- `DISPLAY_NAME`：未设置或为空时，自动从 `WIKI_USER` 提取第一个用户名作为默认值
-  - 若 `WIKI_USER` 包含多个用户（以 `|` 或 `%7C` 分隔），只使用第一个用户作为 `DISPLAY_NAME`
-
-**注意：**
-- 以上变量均通过环境变量读取，在 Actions 中配置对应 Secrets/Variables 即可
-- `USER_AGENT` 可通过 `vars.USER_AGENT` 统一配置；若含私人联系信息，建议改放 Secrets
-- 建议设置有意义的 `User-Agent`（包含项目标识与联系方式）
 
 ## 图表行为
 
@@ -196,7 +178,7 @@
   - 读取 `BOT_USERNAME` 与 `BOT_PASSWORD`（Secrets）
   - 成功登录后再执行 `usercontribs` 查询
 
-## 本地运行（.env）
+## 本地运行注意事项
 
 - `generate_chart_json.py` 和 `publish_chart_json.py` 会自动读取项目根目录下的 `.env`
 - 可先复制 `.env.example` 为 `.env`，再填入你的真实值
@@ -212,9 +194,7 @@ python generate_chart_json.py
 python publish_chart_json.py
 ```
 
-本地执行 `publish_chart_json.py` 时，请确保 `.env` 或系统环境中已设置 `WIKI_API`、`WIKI_PAGE`、`BOT_USERNAME`、`BOT_PASSWORD`；可选设置 `EDIT_TAG_CANDIDATES`。
-
-说明：`generate_chart_json.py` 与 `publish_chart_json.py` 均读取 `WIKI_API`。
+本地执行 `publish_chart_json.py` 时，请确保 `.env` 或系统环境中已设置 `WIKI_API`、`WIKI_PAGE`、`BOT_USERNAME`、`BOT_PASSWORD`。
 
 ## 首次验证建议
 
