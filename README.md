@@ -40,25 +40,25 @@
 
 在 GitHub 仓库中配置以下项目：
 
-### 通用配置项（Secrets / Variables）
+### 通用配置项
 
-| 配置项 | Secrets | Vars | 说明 |
+| 配置项 | Secrets | Variables | 说明 |
 |:---:|:---:|:---:|:---|
-| `WIKI_USER` | [x] | [x] | <ul><li>要统计贡献的用户名<br>可带`User:`前缀，但任何别名（如`U:`）都不支持；建议不加<ul><li>根据 MediaWiki API 文档[[Special:ApiHelp/query]]，支持 `用户名、​IP、​临时用户和​跨wiki用户名（例如“前缀>示例用户”）`（“跨wiki用户名”指跨维基导入的页面修订历史中被导入的用户名，并非允许[[Special:Interwiki]]的跨Wiki链接）</li></ul></li><li>支持查询多用户：使用 `\|` 或 `%7C`（管道符）分隔多个用户名，例如 `User1\|User2\|User3`<ul><li>在 `CHART_SORT_MODE=namespace` 或 `sum` 模式下：合并所有用户的贡献数据</li><li>在 `CHART_SORT_MODE=account` 模式下：按用户分别统计并按输入顺序在图表中堆叠展示</li><li>`DISPLAY_NAME` 会默认使用 `WIKI_USER` 中的第一个用户名作为显示名称</li></ul></li></ul> |
-| `DISPLAY_NAME` | [x] | [x] | <ul><li>图表中显示的用户名/别名</li><li>未设置或为空时，自动从 `WIKI_USER` 提取第一个用户作为默认值（若 `WIKI_USER` 包含多个用户，则只使用第一个）</li></ul> |
-| `WIKI_PAGE` | [x] | [x] | <ul><li>要覆盖写入的页面标题，通常是个人用户子页面</li><li>需为完整页面名称，例如：`User:ExampleBot/ContributionChart`</li></ul> |
-| `USER_AGENT` | [x] | [x] | <ul><li>建议配置为：`WikiChartBot/1.0 (https://github.com/<your‑org>/<your‑仓库>; <your-noreply-email>) requests/2.x`<ul><li>即在括号中填写你的 GitHub 仓库 URL 和可联系邮箱。</li></ul></li><li>若包含私人邮箱/联系信息，建议放 secret</li></ul> |
-| `BOT_USERNAME` | [x] | [ ] | <ul><li>Bot 的登录名</li><li>BotPasswords的机器人名称格式：`主账户@机器人名称`</li><li>此项目当前不支持 OAuth（原作者目标 wiki 站点未安装 OAuth 扩展）</li></ul> |
-| `BOT_PASSWORD` | [x] | [ ] | <ul><li>Bot 登录密码</li></ul> |
-| `WIKI_API` | [ ] | [x] | <ul><li>例如：`https://meta.wikimedia.org/w/api.php`</li><li>用于抓取 usercontribs 和上传内容</li></ul> |
-| `EXCLUDED_NAMESPACES` | [ ] | [x] | <ul><li>可选，支持三种模式：<ul><li>**不设置或空值**：自动排除 `ns=2`(用户) 与所有奇数命名空间（讨论页）</li><li>**显式不排除**：设置为 `false`/`null`/`none`（任一即可），将不排除任何命名空间</li><li>**指定排除**：逗号分隔整数，例如 `1,2,3,5,7,9`</li></ul></li></ul> |
-| `NAMESPACE_MODE` | [ ] | [x] | <ul><li>按命名空间归类时，对于大量命名空间的处理方法，`top` 或 `all`，默认 `top`</li></ul> |
-| `TOP_NAMESPACE_LIMIT` | [ ] | [x] | <ul><li>Top 展示的命名空间数量（正整数，默认 `10`）</li></ul> |
-| `CHART_SORT_MODE` | [ ] | [x] | <ul><li>可选，`namespace`、`sum` 或 `account`</li><li>默认 `namespace`：按命名空间堆叠</li><li>`sum`：按月总贡献（单序列）</li><li>`account`：按月账户堆叠（多用户模式）</li></ul> |
-| `CHART_SERIES_TYPE` | [ ] | [x] | <ul><li>可选，`bar` （直方图）或 `line`（折线图）</li><li>仅控制图表初始展示类型（默认 `bar`）</li><li>图表内通过 `magicType` 在 `line/bar` 切换时会沿用统一样式配置</li></ul> |
-| `ACCOUNT_REG_MARKER_ENABLED` | [ ] | [x] | <ul><li>可选，`true` 或 `false`</li><li>默认 `false`：是否启用注册时间标记（全模式可用）</li></ul> |
-| `ACCOUNT_REG_MARKER_OUT_OF_RANGE` | [ ] | [x] | <ul><li>可选，`clamp_to_first` 或 `hide`</li><li>默认 `clamp_to_first`：注册时间早于统计区间时的处理策略</li></ul> |
-| `EDIT_TAG_CANDIDATES` | [ ] | [x] | <ul><li>可选，逗号分隔标签候选列表，按顺序尝试，例如：`bot, Bot`</li><li>默认值：`bot, Bot`</li><li>留空时不尝试任何标签，仅执行无标签编辑</li></ul> |
+| `WIKI_USER` | ✅ | ✅ | <ul><li>要统计贡献的用户名<br>可带`User:`前缀，但任何别名（如`U:`）都不支持；建议不加<ul><li>根据 MediaWiki API 文档[[Special:ApiHelp/query]]，支持 `用户名、​IP、​临时用户和​跨wiki用户名（例如“前缀>示例用户”）`（“跨wiki用户名”指跨维基导入的页面修订历史中被导入的用户名，并非允许[[Special:Interwiki]]的跨Wiki链接）</li></ul></li><li>支持查询多用户：使用 `\|` 或 `%7C`（管道符）分隔多个用户名，例如 `User1\|User2\|User3`<ul><li>在 `CHART_SORT_MODE=namespace` 或 `sum` 模式下：合并所有用户的贡献数据</li><li>在 `CHART_SORT_MODE=account` 模式下：按用户分别统计并按输入顺序在图表中堆叠展示</li><li>`DISPLAY_NAME` 会默认使用 `WIKI_USER` 中的第一个用户名作为显示名称</li></ul></li></ul> |
+| `DISPLAY_NAME` | ✅ | ✅ | <ul><li>图表中显示的用户名/别名</li><li>未设置或为空时，自动从 `WIKI_USER` 提取第一个用户作为默认值（若 `WIKI_USER` 包含多个用户，则只使用第一个）</li></ul> |
+| `WIKI_PAGE` | ✅ | ✅ | <ul><li>要覆盖写入的页面标题，通常是个人用户子页面</li><li>需为完整页面名称，例如：`User:ExampleBot/ContributionChart`</li></ul> |
+| `USER_AGENT` | ✅ | ✅ | <ul><li>建议配置为：`WikiChartBot/1.0 (https://github.com/<your‑org>/<your‑仓库>; <your-noreply-email>) requests/2.x`<ul><li>即在括号中填写你的 GitHub 仓库 URL 和可联系邮箱。</li></ul></li><li>若包含私人邮箱/联系信息，建议放 secret</li></ul> |
+| `BOT_USERNAME` | ✅ |  | <ul><li>Bot 的登录名</li><li>BotPasswords的机器人名称格式：`主账户@机器人名称`</li><li>此项目当前不支持 OAuth（原作者目标 wiki 站点未安装 OAuth 扩展）</li></ul> |
+| `BOT_PASSWORD` | ✅ |  | <ul><li>Bot 登录密码</li></ul> |
+| `WIKI_API` |  | ✅ | <ul><li>例如：`https://meta.wikimedia.org/w/api.php`</li><li>用于抓取 usercontribs 和上传内容</li></ul> |
+| `EXCLUDED_NAMESPACES` |  | ✅ | <ul><li>可选，支持三种模式：<ul><li>**不设置或空值**：自动排除 `ns=2`(用户) 与所有奇数命名空间（讨论页）</li><li>**显式不排除**：设置为 `false`/`null`/`none`（任一即可），将不排除任何命名空间</li><li>**指定排除**：逗号分隔整数，例如 `1,2,3,5,7,9`</li></ul></li></ul> |
+| `NAMESPACE_MODE` |  | ✅ | <ul><li>按命名空间归类时，对于大量命名空间的处理方法，`top` 或 `all`，默认 `top`</li></ul> |
+| `TOP_NAMESPACE_LIMIT` |  | ✅ | <ul><li>Top 展示的命名空间数量（正整数，默认 `10`）</li></ul> |
+| `CHART_SORT_MODE` |  | ✅ | <ul><li>可选，`namespace`、`sum` 或 `account`</li><li>默认 `namespace`：按命名空间堆叠</li><li>`sum`：按月总贡献（单序列）</li><li>`account`：按月账户堆叠（多用户模式）</li></ul> |
+| `CHART_SERIES_TYPE` |  | ✅ | <ul><li>可选，`bar` （直方图）或 `line`（折线图）</li><li>仅控制图表初始展示类型（默认 `bar`）</li><li>图表内通过 `magicType` 在 `line/bar` 切换时会沿用统一样式配置</li></ul> |
+| `ACCOUNT_REG_MARKER_ENABLED` |  | ✅ | <ul><li>可选，`true` 或 `false`</li><li>默认 `false`：是否启用注册时间标记（全模式可用）</li></ul> |
+| `ACCOUNT_REG_MARKER_OUT_OF_RANGE` |  | ✅ | <ul><li>可选，`clamp_to_first` 或 `hide`</li><li>默认 `clamp_to_first`：注册时间早于统计区间时的处理策略</li></ul> |
+| `EDIT_TAG_CANDIDATES` |  | ✅ | <ul><li>可选，逗号分隔标签候选列表，按顺序尝试，例如：`bot, Bot`</li><li>默认值：`bot, Bot`</li><li>留空时不尝试任何标签，仅执行无标签编辑</li></ul> |
 
 > Workflow 兼容策略：同时支持二者的项均为 **Secrets 优先，并支持 Variables**，可按实际情况选择。
 
