@@ -97,14 +97,14 @@ def build_registration_scatter_series(
                 continue
             month_idx = 0
             display_date = (
-                f"{reg_year}年{reg_month:02d}月{reg_day:02d}日（早于统计区间）"
+                f"{reg_year}年{reg_month}月{reg_day}日（早于统计区间）"
             )
         else:
             try:
                 month_idx = full_months.index((reg_year, reg_month))
             except ValueError:
                 continue
-            display_date = f"{reg_month:02d}月{reg_day:02d}日"
+            display_date = f"{reg_month}月{reg_day}日"
 
         registration_scatter_data.append({
             "name": f"{account_name} 注册时间",
