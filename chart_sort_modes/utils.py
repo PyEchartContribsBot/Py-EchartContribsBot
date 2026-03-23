@@ -10,23 +10,6 @@ from chart_sort_modes import (
 )
 
 
-def build_namespace_name(ns_id: int, namespace_map: dict[int, str] | None = None) -> str:
-    """根据命名空间 ID 获取显示名称。
-
-    Args:
-        ns_id: 命名空间 ID
-        namespace_map: 命名空间映射（从 API 获取）。如果为 None，则使用占位符格式。
-
-    Returns:
-        命名空间的显示名称
-    """
-    if namespace_map and ns_id in namespace_map:
-        return namespace_map[ns_id]
-
-    # 降级处理：当没有 namespace_map 时使用占位符
-    return "（主）" if ns_id == 0 else f"ns:{ns_id}"
-
-
 def build_excluded_namespaces_text(
     excluded_namespaces: set[int],
     namespace_map: dict[int, str] | None = None,
@@ -47,14 +30,17 @@ def build_excluded_namespaces_text(
 
     if is_auto_inferred:
         # 自动推断时的特殊格式：显示 ns=2 和奇数命名空间
-        ns_2_name = build_namespace_name(2, namespace_map)
-        ns_1_name = build_namespace_name(1, namespace_map)
+        ns_2_name = namespace_map.get(2) if namespace_map else None
+        ns_1_name = namespace_map.get(1) if namespace_map else None
+        ns_2_name = ns_2_name or "ns:2"
+        ns_1_name = ns_1_name or "ns:1"
         return f"已排除{ns_2_name}、各奇数〔{ns_1_name}〕命名空间"
 
     sorted_ids = sorted(excluded_namespaces)
     preview_count = 3
     preview_labels = [
-        build_namespace_name(ns_id, namespace_map)
+        (namespace_map.get(ns_id) if namespace_map else None)
+        or ("（主）" if ns_id == 0 else f"ns:{ns_id}")
         for ns_id in sorted_ids[:preview_count]
     ]
     if len(sorted_ids) <= preview_count:

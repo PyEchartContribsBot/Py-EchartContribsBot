@@ -13,12 +13,12 @@ from chart_sort_modes import (
     parse_account_reg_marker_out_of_range,
     parse_chart_sort_mode,
 )
-from chart_sort_modes.namespace_fetcher import fetch_namespaces
 from mw_runtime import (
     DEFAULT_USER_AGENT,
     api_get_json,
     build_session,
     fetch_account_registrations,
+    fetch_namespaces,
     load_env_file,
     login_with_bot_password,
     parse_bool_env,

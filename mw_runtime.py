@@ -156,6 +156,58 @@ def fetch_account_registrations(
     return registrations
 
 
+def fetch_namespaces(
+    session: requests.Session,
+    wiki_api: str,
+    timeout: int,
+) -> dict[int, str]:
+    """从 MediaWiki API 获取命名空间名称映射。"""
+    params: dict[str, Any] = {
+        "action": "query",
+        "format": "json",
+        "meta": "siteinfo",
+        "formatversion": 2,
+        "siprop": "namespaces",
+    }
+
+    try:
+        data = api_get_json(
+            session=session,
+            wiki_api=wiki_api,
+            params=params,
+            timeout=timeout,
+            error_context="获取命名空间信息失败",
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(f"无法从 API 获取命名空间: {exc}") from exc
+
+    namespaces_data = data.get("query", {}).get("namespaces", {})
+    if not namespaces_data:
+        raise RuntimeError("API 响应中未包含 namespaces 数据")
+
+    namespace_map: dict[int, str] = {}
+
+    for ns_key, ns_info in namespaces_data.items():
+        try:
+            ns_id = int(ns_key)
+        except ValueError:
+            continue
+
+        if not isinstance(ns_info, dict):
+            continue
+
+        # formatversion=2 使用 "name" 字段（而非 formatversion=1 的 "*" 字段）
+        ns_name = ns_info.get("name", "")
+
+        # MediaWiki API 对主命名空间返回空字符串，将其转换为"（主）"
+        if ns_id == 0 and not ns_name:
+            namespace_map[ns_id] = "（主）"
+        elif ns_name:
+            namespace_map[ns_id] = ns_name
+
+    return namespace_map
+
+
 def get_login_token(
     session: requests.Session,
     wiki_api: str,

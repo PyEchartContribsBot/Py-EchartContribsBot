@@ -11,7 +11,6 @@ from chart_sort_modes.utils import (
     build_common_datazoom,
     build_excluded_namespaces_text,
     build_magic_type_toolbox,
-    build_namespace_name,
     build_registration_scatter_series,
 )
 
@@ -123,7 +122,8 @@ def build_option(
     legend_data: list[str] = []
     series: list[dict[str, Any]] = []
     for ns_id in selected_namespace_ids:
-        ns_name = build_namespace_name(ns_id, namespace_map)
+        ns_name = (namespace_map.get(ns_id) if namespace_map else None)
+        ns_name = ns_name or ("（主）" if ns_id == 0 else f"ns:{ns_id}")
         legend_data.append(ns_name)
         series.append({
             "name":
