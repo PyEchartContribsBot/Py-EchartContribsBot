@@ -80,6 +80,7 @@ def build_option(
     contribs: list[dict[str, Any]],
     generated_time: str,
     chart_series_type: str,
+    multi_series_render_mode: str,
     excluded_namespaces: set[int],
     namespace_mode: str,
     top_namespace_limit: int,
@@ -88,7 +89,7 @@ def build_option(
     account_registrations: dict[str, str] | None = None,
     account_reg_marker_out_of_range: str = DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE,
 ) -> dict[str, Any]:
-    del namespace_mode, top_namespace_limit
+    del namespace_mode, top_namespace_limit, multi_series_render_mode
 
     full_months, x_labels, y_values = _group_by_month(contribs)
     excluded_text = build_excluded_namespaces_text(

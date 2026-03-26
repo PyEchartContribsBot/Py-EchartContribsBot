@@ -49,7 +49,7 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 
 | 配置项 | Secrets | Variables | 说明 |
 |:---:|:---:|:---:|:---|
-| `WIKI_USER` | ✅ | ✅ | <details><summary>要统计贡献的用户名，可带`User:`前缀，但任何别名（如`U:`）都不支持，故建议不加</summary><ul><li>根据 MediaWiki API 文档[[Special:ApiHelp/query]]，支持 `用户名、​IP、​临时用户和​跨wiki用户名（例如“前缀>示例用户”）`</li><li>注：“跨wiki用户名”指跨维基导入的页面修订历史中被导入的用户名，并非允许[[Special:Interwiki]]中的跨Wiki链接</li></ul></details><details><summary>支持查询多用户：使用 `\|` 或 `%7C`（管道符）分隔多个用户名，例如 `User1\|User2\|User3`</summary><ol><li>在 `CHART_SORT_MODE=namespace` 或 `sum` 模式下：合并所有用户的贡献数据</li><li>在 `CHART_SORT_MODE=account` 模式下：按用户分别统计并按输入顺序在图表中堆叠展示</li><li>`DISPLAY_NAME` 会默认使用 `WIKI_USER` 中的第一个用户名作为显示名称</li></ol></details> |
+| `WIKI_USER` | ✅ | ✅ | <details><summary>要统计贡献的用户名，可带`User:`前缀，但任何别名（如`U:`）都不支持，故建议不加</summary><ul><li>根据 MediaWiki API 文档[[Special:ApiHelp/query]]，支持 `用户名、​IP、​临时用户和​跨wiki用户名（例如“前缀>示例用户”）`</li><li>注：“跨wiki用户名”指跨维基导入的页面修订历史中被导入的用户名，并非允许[[Special:Interwiki]]中的跨Wiki链接</li></ul></details><details><summary>支持查询多用户：使用 `\|` 或 `%7C`（管道符）分隔多个用户名，例如 `User1\|User2\|User3`</summary><ol><li>在 `CHART_SORT_MODE=namespace` 或 `sum` 模式下：合并所有用户的贡献数据</li><li>在 `CHART_SORT_MODE=account` 模式下：按用户分别统计并按输入顺序在图表中展示（具体由 `MULTI_SERIES_RENDER_MODE` 决定 stacked 或 dataset）</li><li>`DISPLAY_NAME` 会默认使用 `WIKI_USER` 中的第一个用户名作为显示名称</li></ol></details> |
 | `DISPLAY_NAME` | ✅ | ✅ | 图表中显示的用户名/别名<br>未设置或为空时，自动从 `WIKI_USER` 提取第一个用户作为默认值|
 | `WIKI_PAGE` | ✅ | ✅ | 要覆盖写入的页面标题，通常是个人用户子页面<br>需为完整页面名称，例如：`User:Example/ContributionChart` |
 | `USER_AGENT` | ✅ | ✅ | 建议配置为：`WikiChartBot/1.0 (https://github.com/<your‑org>/<your‑仓库>; <your-noreply-email>) requests/2.x`，即在括号中填写你的 GitHub 仓库 URL 和可联系邮箱。<br>若包含私人邮箱/联系信息，建议放 secret |
@@ -59,8 +59,9 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 | `EXCLUDED_NAMESPACES` |  | ✅ | <details><summary>支持三种模式</summary><ol><li>不设置或空值：自动排除 `ns=2`(用户) 与所有奇数命名空间（讨论页）</li><li>显式不排除：设置为 `false`/`null`/`none`（任一即可），将不排除任何命名空间</li><li>指定排除：逗号分隔整数，例如 `1,2,3,5,7,9`</li></ol></details> |
 | `NAMESPACE_MODE` |  | ✅ | 按命名空间归类时，对于大量命名空间的处理方法，`top` 或 `all`，默认 `top` |
 | `TOP_NAMESPACE_LIMIT` |  | ✅ | Top 展示的命名空间数量（正整数，默认 `10`） |
-| `CHART_SORT_MODE` |  | ✅ | <details><summary>`namespace`、`sum` 或 `account`，默认 `namespace`</summary><ol><li>`namespace`：按命名空间堆叠<br></li><li>`sum`：按月总贡献（单序列）<br></li><li>`account`：按月账户堆叠（多用户模式）</li></ol></details> |
+| `CHART_SORT_MODE` |  | ✅ | <details><summary>`namespace`、`sum` 或 `account`，默认 `namespace`</summary><ol><li>`namespace`：按命名空间统计（多序列）<br></li><li>`sum`：按月总贡献（单序列）<br></li><li>`account`：按月账户统计（多用户模式）</li></ol></details> |
 | `CHART_SERIES_TYPE` |  | ✅ | `bar`（直方图）或 `line`（折线图）<br>仅控制图表初始展示类型，默认 `bar` |
+| `MULTI_SERIES_RENDER_MODE` |  | ✅ | `stacked` 或 `dataset`，默认 `stacked`<br>仅对 `namespace`、`account` 两个多序列模式生效：`stacked` 输出 `series[].data + stack`，`dataset` 输出 `dataset.dimensions/source` |
 | `ACCOUNT_REG_MARKER_ENABLED` |  | ✅ | 是否启用注册时间标记（全模式可用）<br>`true` 或 `false`，默认 `false` |
 | `ACCOUNT_REG_MARKER_OUT_OF_RANGE` |  | ✅ | `clamp_to_first` 或 `hide`<br>默认 `clamp_to_first`：注册时间早于统计区间时的处理策略 |
 | `EDIT_TAG_CANDIDATES` |  | ✅ | 逗号分隔标签候选列表，按顺序尝试，默认值：`bot, Bot`<br>留空时不尝试任何标签，仅执行无标签编辑 |
@@ -71,7 +72,7 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 <summary>均为可选的 Variables</summary>
   
 - `CHART_SORT_MODE=namespace`（默认）
-  - 输出按月命名空间堆叠图
+  - 输出按月命名空间统计图（多序列）
   - 每个系列的名称通过 MediaWiki API 获取实际的命名空间名称
   - 当命名空间较多时，默认启用 `NAMESPACE_MODE=top`，降低 legend 拥挤风险
     -  `NAMESPACE_MODE`：按命名空间归类时，对于大量命名空间的处理方法，`top` 或 `all`，默认 `top`
@@ -81,9 +82,13 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 - `CHART_SORT_MODE=sum`
   - 输出按月总贡献图（单序列）
 - `CHART_SORT_MODE=account`
-  - 输出按月账户堆叠图（多用户模式）
+  - 输出按月账户统计图（多用户模式）
   - 在 `WIKI_USER` 中使用 `|` 或 `%7C` 分隔多个用户名，例如：`User1|User2|User3`
   - 拉取所有指定用户的贡献并合并，按照 `WIKI_USER` 中的用户顺序在图表中排列
+- `MULTI_SERIES_RENDER_MODE`
+  - `stacked`（默认）：多序列使用 `stack` 堆叠输出
+  - `dataset`：多序列使用 ECharts `dataset` （数据集）输出（`dimensions/source`），不写入 `stack`
+  - 仅对 `CHART_SORT_MODE=namespace` 与 `CHART_SORT_MODE=account` 生效，`sum` 模式不受影响
 - 注册时间标记（全模式可选）
   - `ACCOUNT_REG_MARKER_ENABLED`：是否启用注册时间标记（`true` 或 `false`，默认 `false`）
   - `ACCOUNT_REG_MARKER_OUT_OF_RANGE`：当注册时间早于统计首月时的处理策略

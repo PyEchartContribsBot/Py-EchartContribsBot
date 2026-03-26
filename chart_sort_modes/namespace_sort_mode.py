@@ -83,17 +83,19 @@ def _select_series_namespaces(
     return kept, merged
 
 
-def _build_series_style() -> dict[str, Any]:
-    return {
+def _build_series_style(include_area_style: bool = True) -> dict[str, Any]:
+    style: dict[str, Any] = {
         "showSymbol": False,
         "lineStyle": {
             "width": 1.8,
         },
-        "areaStyle": {
-            "opacity": 0.16,
-        },
         "barMaxWidth": 28,
     }
+    if include_area_style:
+        style["areaStyle"] = {
+            "opacity": 0.16,
+        }
+    return style
 
 
 def build_option(
@@ -101,6 +103,7 @@ def build_option(
     contribs: list[dict[str, Any]],
     generated_time: str,
     chart_series_type: str,
+    multi_series_render_mode: str,
     excluded_namespaces: set[int],
     namespace_mode: str,
     top_namespace_limit: int,
@@ -120,25 +123,12 @@ def build_option(
     )
 
     legend_data: list[str] = []
-    series: list[dict[str, Any]] = []
+    series_data_by_name: dict[str, list[int]] = {}
     for ns_id in selected_namespace_ids:
         ns_name = (namespace_map.get(ns_id) if namespace_map else None)
         ns_name = ns_name or ("（主）" if ns_id == 0 else f"ns:{ns_id}")
         legend_data.append(ns_name)
-        series.append({
-            "name":
-            ns_name,
-            "type":
-            chart_series_type,
-            "stack":
-            "Total",
-            "emphasis": {
-                "focus": "series"
-            },
-            "data":
-            namespace_month_counts.get(ns_id, [0] * len(x_labels)),
-            **_build_series_style(),
-        })
+        series_data_by_name[ns_name] = namespace_month_counts.get(ns_id, [0] * len(x_labels))
 
     if merged_namespace_ids:
         other_data = [0] * len(x_labels)
@@ -150,20 +140,40 @@ def build_option(
 
         other_name = "其他命名空间"
         legend_data.append(other_name)
-        series.append({
-            "name":
-            other_name,
-            "type":
-            chart_series_type,
-            "stack":
-            "Total",
+        series_data_by_name[other_name] = other_data
+
+    if multi_series_render_mode == "dataset":
+        dataset_dimensions = ["month", *legend_data]
+        dataset_source: list[dict[str, Any]] = []
+        for idx, month_label in enumerate(x_labels):
+            row: dict[str, Any] = {"month": month_label}
+            for series_name in legend_data:
+                row[series_name] = series_data_by_name.get(series_name, [0] * len(x_labels))[idx]
+            dataset_source.append(row)
+
+        series: list[dict[str, Any]] = [{
+            "name": series_name,
+            "type": chart_series_type,
             "emphasis": {
                 "focus": "series"
             },
-            "data":
-            other_data,
+            "encode": {
+                "x": "month",
+                "y": series_name,
+            },
+            **_build_series_style(include_area_style=False),
+        } for series_name in legend_data]
+    else:
+        series = [{
+            "name": series_name,
+            "type": chart_series_type,
+            "stack": "Total",
+            "emphasis": {
+                "focus": "series"
+            },
+            "data": series_data_by_name.get(series_name, [0] * len(x_labels)),
             **_build_series_style(),
-        })
+        } for series_name in legend_data]
 
     if registration_series := build_registration_scatter_series(
         x_labels=x_labels,
@@ -183,7 +193,7 @@ def build_option(
         f"（截至 {generated_time}）"
     )
 
-    return {
+    option: dict[str, Any] = {
         "__WARNING__":
         "!!! DON'T MODIFY THIS PAGE MANUALLY, YOUR CHANGES WILL BE OVERWRITTEN !!!",
         "title": {
@@ -206,7 +216,7 @@ def build_option(
         "tooltip": build_axis_tooltip_config(),
         "toolbox": build_magic_type_toolbox(
             bar_max_width=28,
-            include_line_area_style=True,
+            include_line_area_style=multi_series_render_mode != "dataset",
         ),
         "axisPointer": {
             "link": {
@@ -233,3 +243,11 @@ def build_option(
         "animation":
         False
     }
+
+    if multi_series_render_mode == "dataset":
+        option["dataset"] = {
+            "dimensions": dataset_dimensions,
+            "source": dataset_source,
+        }
+
+    return option

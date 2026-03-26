@@ -79,17 +79,19 @@ def _group_by_month_and_account(
     return full_months, account_month_counts, list(accounts_contribs.keys())
 
 
-def _build_series_style() -> dict[str, Any]:
-    return {
+def _build_series_style(include_area_style: bool = True) -> dict[str, Any]:
+    style: dict[str, Any] = {
         "showSymbol": False,
         "lineStyle": {
             "width": 1.8,
         },
-        "areaStyle": {
-            "opacity": 0.16,
-        },
         "barMaxWidth": 28,
     }
+    if include_area_style:
+        style["areaStyle"] = {
+            "opacity": 0.16,
+        }
+    return style
 
 
 def build_option(
@@ -97,6 +99,7 @@ def build_option(
     accounts_contribs: dict[str, list[dict[str, Any]]],
     generated_time: str,
     chart_series_type: str,
+    multi_series_render_mode: str,
     account_order: list[str],
     excluded_namespaces: set[int] | None = None,
     is_auto_inferred_namespaces: bool = False,
@@ -130,23 +133,47 @@ def build_option(
 
     # 按指定顺序构建图表系列
     legend_data: list[str] = []
-    series: list[dict[str, Any]] = []
+    series_data_by_name: dict[str, list[int]] = {}
 
     for account in account_order:
         if account not in account_month_counts:
             continue
 
         legend_data.append(account)
-        series.append({
-            "name": account,
+        series_data_by_name[account] = account_month_counts.get(account, [0] * len(x_labels))
+
+    if multi_series_render_mode == "dataset":
+        dataset_dimensions = ["month", *legend_data]
+        dataset_source: list[dict[str, Any]] = []
+        for idx, month_label in enumerate(x_labels):
+            row: dict[str, Any] = {"month": month_label}
+            for series_name in legend_data:
+                row[series_name] = series_data_by_name.get(series_name, [0] * len(x_labels))[idx]
+            dataset_source.append(row)
+
+        series: list[dict[str, Any]] = [{
+            "name": series_name,
+            "type": chart_series_type,
+            "emphasis": {
+                "focus": "series"
+            },
+            "encode": {
+                "x": "month",
+                "y": series_name,
+            },
+            **_build_series_style(include_area_style=False),
+        } for series_name in legend_data]
+    else:
+        series = [{
+            "name": series_name,
             "type": chart_series_type,
             "stack": "Total",
             "emphasis": {
                 "focus": "series"
             },
-            "data": account_month_counts.get(account, [0] * len(x_labels)),
+            "data": series_data_by_name.get(series_name, [0] * len(x_labels)),
             **_build_series_style(),
-        })
+        } for series_name in legend_data]
 
     if registration_series := build_registration_scatter_series(
         x_labels=x_labels,
@@ -167,7 +194,7 @@ def build_option(
         f"（截至 {generated_time}）"
     )
 
-    return {
+    option: dict[str, Any] = {
         "__WARNING__":
         "!!! DON'T MODIFY THIS PAGE MANUALLY, YOUR CHANGES WILL BE OVERWRITTEN !!!",
         "title": {
@@ -190,7 +217,7 @@ def build_option(
         "tooltip": build_axis_tooltip_config(),
         "toolbox": build_magic_type_toolbox(
             bar_max_width=28,
-            include_line_area_style=True,
+            include_line_area_style=multi_series_render_mode != "dataset",
         ),
         "axisPointer": {
             "link": {
@@ -215,3 +242,11 @@ def build_option(
         "series": series,
         "animation": False
     }
+
+    if multi_series_render_mode == "dataset":
+        option["dataset"] = {
+            "dimensions": dataset_dimensions,
+            "source": dataset_source,
+        }
+
+    return option

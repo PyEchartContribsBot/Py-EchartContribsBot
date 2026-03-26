@@ -4,8 +4,11 @@ from typing import Any, Literal
 
 ChartSortMode = Literal["namespace", "sum", "account"]
 AccountRegMarkerOutOfRange = Literal["clamp_to_first", "hide"]
+MultiSeriesRenderMode = Literal["stacked", "dataset"]
 
 _SUPPORTED_CHART_SORT_MODES: set[str] = {"namespace", "sum", "account"}
+DEFAULT_MULTI_SERIES_RENDER_MODE: MultiSeriesRenderMode = "stacked"
+_SUPPORTED_MULTI_SERIES_RENDER_MODES: set[str] = {"stacked", "dataset"}
 
 DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE: AccountRegMarkerOutOfRange = "clamp_to_first"
 SUPPORTED_ACCOUNT_REG_MARKER_OUT_OF_RANGE: set[str] = {"clamp_to_first", "hide"}
@@ -29,6 +32,17 @@ def parse_chart_sort_mode(raw_value: str) -> ChartSortMode:
     return value  # type: ignore[return-value]
 
 
+def parse_multi_series_render_mode(raw_value: str) -> MultiSeriesRenderMode:
+    value = raw_value.strip().lower()
+    if not value:
+        return DEFAULT_MULTI_SERIES_RENDER_MODE
+    if value not in _SUPPORTED_MULTI_SERIES_RENDER_MODES:
+        raise RuntimeError(
+            "环境变量 MULTI_SERIES_RENDER_MODE 仅支持 stacked 或 dataset，"
+            "例如 MULTI_SERIES_RENDER_MODE=stacked")
+    return value  # type: ignore[return-value]
+
+
 def parse_account_reg_marker_out_of_range(raw_value: str) -> AccountRegMarkerOutOfRange:
     value = raw_value.strip().lower()
     if not value or value == DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE:
@@ -45,6 +59,7 @@ def build_option_for_sort_mode(
     contribs: list[dict[str, Any]],
     generated_time: str,
     chart_series_type: str,
+    multi_series_render_mode: MultiSeriesRenderMode,
     excluded_namespaces: set[int],
     namespace_mode: str,
     top_namespace_limit: int,
@@ -67,6 +82,7 @@ def build_option_for_sort_mode(
             accounts_contribs=accounts_contribs,
             generated_time=generated_time,
             chart_series_type=chart_series_type,
+            multi_series_render_mode=multi_series_render_mode,
             account_order=account_order,
             excluded_namespaces=excluded_namespaces,
             is_auto_inferred_namespaces=is_auto_inferred_namespaces,
@@ -83,6 +99,7 @@ def build_option_for_sort_mode(
             contribs=contribs,
             generated_time=generated_time,
             chart_series_type=chart_series_type,
+            multi_series_render_mode=multi_series_render_mode,
             excluded_namespaces=excluded_namespaces,
             namespace_mode=namespace_mode,
             top_namespace_limit=top_namespace_limit,
@@ -99,6 +116,7 @@ def build_option_for_sort_mode(
         contribs=contribs,
         generated_time=generated_time,
         chart_series_type=chart_series_type,
+        multi_series_render_mode=multi_series_render_mode,
         excluded_namespaces=excluded_namespaces,
         namespace_mode=namespace_mode,
         top_namespace_limit=top_namespace_limit,

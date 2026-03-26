@@ -12,6 +12,7 @@ from chart_sort_modes import (
     build_option_for_sort_mode,
     parse_account_reg_marker_out_of_range,
     parse_chart_sort_mode,
+    parse_multi_series_render_mode,
 )
 from mw_runtime import (
     DEFAULT_USER_AGENT,
@@ -92,6 +93,10 @@ def _parse_chart_series_type(raw_value: str) -> str:
     return value
 
 
+def _parse_multi_series_render_mode(raw_value: str) -> str:
+    return parse_multi_series_render_mode(raw_value)
+
+
 def _extract_first_user(user_str: str) -> str:
     """从可能包含多个用户（以|或%7C分隔）的字符串中提取第一个用户。"""
     if not user_str:
@@ -131,6 +136,8 @@ TOP_NAMESPACE_LIMIT: int = _parse_top_namespace_limit(
     os.environ.get("TOP_NAMESPACE_LIMIT", "10"))
 CHART_SERIES_TYPE: str = _parse_chart_series_type(
     os.environ.get("CHART_SERIES_TYPE", "bar"))  # 仅控制初始 series.type
+MULTI_SERIES_RENDER_MODE: str = _parse_multi_series_render_mode(
+    os.environ.get("MULTI_SERIES_RENDER_MODE", "stacked"))
 CHART_SORT_MODE = parse_chart_sort_mode(
     os.environ.get("CHART_SORT_MODE", "namespace"))
 OUTPUT_FILE: str = "echart_option.json"
@@ -389,6 +396,7 @@ def main() -> None:
                 contribs=[],  # account 模式不使用此参数
                 generated_time=generated_time,
                 chart_series_type=CHART_SERIES_TYPE,
+                multi_series_render_mode=MULTI_SERIES_RENDER_MODE,
                 excluded_namespaces=excluded_namespaces,
                 namespace_mode="",  # account 模式不使用此参数
                 top_namespace_limit=0,  # account 模式不使用此参数
@@ -419,6 +427,7 @@ def main() -> None:
                 contribs=filtered_contribs,
                 generated_time=generated_time,
                 chart_series_type=CHART_SERIES_TYPE,
+                multi_series_render_mode=MULTI_SERIES_RENDER_MODE,
                 excluded_namespaces=excluded_namespaces,
                 namespace_mode=NAMESPACE_MODE,
                 top_namespace_limit=TOP_NAMESPACE_LIMIT,
