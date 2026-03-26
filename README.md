@@ -1,6 +1,6 @@
-# Wiki Chart Bot
+# Echart Contribution Bot for MediaWiki
 
-自动化用户贡献统计脚本：通过 GitHub Actions 定期执行自动化任务，生成符合 [Apache ECharts 5](https://echarts.apache.org/zh/index.html) 的 [setOption](https://echarts.apache.org/zh/api.html#echartsInstance.setOption) 输入要求的 JSON ，并更新 MediaWiki 页面内容。
+Python 自动化用户贡献统计脚本：通过 GitHub Actions 定期执行自动化任务，生成符合 [Apache ECharts 5](https://echarts.apache.org/zh/index.html) 的 [setOption](https://echarts.apache.org/zh/api.html#echartsInstance.setOption) 输入要求的 JSON ，并更新 MediaWiki 页面内容。
 
 ## 文件结构
 
