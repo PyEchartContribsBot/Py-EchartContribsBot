@@ -83,7 +83,6 @@ def build_session(user_agent: str) -> requests.Session:
     session = requests.Session()
     headers = {
         "User-Agent": user_agent,
-        "Accept-Encoding": "gzip",
     }
 
     # 从环境变量中读取 MediaWiki API 通用 Header
@@ -91,6 +90,7 @@ def build_session(user_agent: str) -> requests.Session:
     headers |= api_headers
 
     session.headers.update(headers)
+    print(requests.utils.default_headers())
     return session
 
 
