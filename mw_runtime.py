@@ -90,7 +90,6 @@ def build_session(user_agent: str) -> requests.Session:
     headers |= api_headers
 
     session.headers.update(headers)
-    print(requests.utils.default_headers())
     return session
 
 
