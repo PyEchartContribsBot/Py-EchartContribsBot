@@ -27,6 +27,7 @@ jobs:
       WIKI_PAGE: "${{ secrets.WIKI_PAGE || vars.WIKI_PAGE }}"
       BOT_USERNAME: "${{ secrets.BOT_USERNAME }}"
       BOT_PASSWORD: "${{ secrets.BOT_PASSWORD }}"
+      MW_API_HEADERS_JSON: "${{ secrets.MW_API_HEADERS_JSON || vars.MW_API_HEADERS_JSON }}"
       SUMMARY: "${{ github.event_name == 'workflow_dispatch' && '半自动更新用户贡献 Echart 所用的 JSON 数据页面（手动触发）' || '自动更新用户贡献 Echart 所用的 JSON 数据页面' }}"
 
     steps:

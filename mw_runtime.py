@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -57,12 +58,39 @@ def safe_get_json(response: Response) -> dict[str, Any]:
         ) from exc
 
 
+def parse_mw_api_headers() -> dict[str, str]:
+    """从环境变量 MW_API_HEADERS_JSON 读取 MediaWiki API 通用 Header。
+
+    Returns:
+        包含 HTTP Header 的字典，如果环境变量未设置或为空则返回空字典
+    """
+    headers_json = os.environ.get("MW_API_HEADERS_JSON", "").strip()
+    if not headers_json:
+        return {}
+
+    try:
+        parsed = json.loads(headers_json)
+        if not isinstance(parsed, dict):
+            raise ValueError("MW_API_HEADERS_JSON must be a JSON object")
+        return parsed
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse MW_API_HEADERS_JSON: {exc}"
+        ) from exc
+
+
 def build_session(user_agent: str) -> requests.Session:
     session = requests.Session()
-    session.headers.update({
+    headers = {
         "User-Agent": user_agent,
         "Accept-Encoding": "gzip",
-    })
+    }
+
+    # 从环境变量中读取 MediaWiki API 通用 Header
+    api_headers = parse_mw_api_headers()
+    headers |= api_headers
+
+    session.headers.update(headers)
     return session
 
 

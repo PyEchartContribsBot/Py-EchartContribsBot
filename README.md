@@ -53,6 +53,7 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 | `DISPLAY_NAME` | ✅ | ✅ | 图表中显示的用户名/别名<br>未设置或为空时，自动从 `WIKI_USER` 提取第一个用户作为默认值|
 | `WIKI_PAGE` | ✅ | ✅ | 要覆盖写入的页面标题，通常是个人用户子页面<br>需为完整页面名称，例如：`User:Example/ContributionChart` |
 | `USER_AGENT` | ✅ | ✅ | 建议配置为：`WikiChartBot/1.0 (https://github.com/<your‑org>/<your‑仓库>; <your-noreply-email>) requests/2.x`，即在括号中填写你的 GitHub 仓库 URL 和可联系邮箱。<br>若包含私人邮箱/联系信息，建议放 secret |
+| `MW_API_HEADERS_JSON` |  | ✅ | <details><summary>MediaWiki API 通用 Header，JSON 格式（可选）</summary>用于添加 Cookie 或其他自定义 HTTP Header。例如：`{"Accept": "application/json", "Cookie": "session_id=abc123"}`。若不需要额外 Header，此项可不设置</details> |
 | `BOT_USERNAME` | ✅ |  | Bot 的登录名<br>BotPasswords 的机器人名称格式：`主账户@机器人名称`<br>此项目当前不支持 OAuth（原作者目标 wiki 站点未安装 OAuth 扩展） |
 | `BOT_PASSWORD` | ✅ |  | Bot 登录密码 |
 | `WIKI_API` |  | ✅ | 例如：`https://meta.wikimedia.org/w/api.php` |
