@@ -63,6 +63,7 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 | `CHART_SORT_MODE` |  | ✅ | <details><summary>`namespace`、`sum` 或 `account`，默认 `namespace`</summary><ol><li>`namespace`：按命名空间统计（多序列）<br></li><li>`sum`：按月总贡献（单序列）<br></li><li>`account`：按月账户统计（多用户模式）</li></ol></details> |
 | `CHART_SERIES_TYPE` |  | ✅ | `bar`（直方图）或 `line`（折线图）<br>仅控制图表初始展示类型，默认 `bar` |
 | `CHART_MULTI_SERIES_MODE` |  | ✅ | `stacked` 或 `dataset`，默认 `stacked`<br>仅对 `namespace`、`account` 两个多序列模式生效：`stacked` 输出 `series[].data + stack`，`dataset` 输出 `dataset.dimensions/source` |
+| `EXCLUDE_TAG` |  | ✅ | 抓取后排除包含指定 tag 的编辑，默认空（不排除）<br>例如：`translate-translation-pages`（通过翻译扩展的自动翻译页面编辑） |
 | `ACCOUNT_REG_MARKER_ENABLED` |  | ✅ | 是否启用注册时间标记（全模式可用）<br>`true` 或 `false`，默认 `false` |
 | `ACCOUNT_REG_MARKER_OUT_OF_RANGE` |  | ✅ | `clamp_to_first` 或 `hide`<br>默认 `clamp_to_first`：注册时间早于统计区间时的处理策略 |
 | `EDIT_TAG_CANDIDATES` |  | ✅ | 逗号分隔标签候选列表，按顺序尝试，默认值：`bot, Bot`<br>留空时不尝试任何标签，仅执行无标签编辑 |
@@ -90,6 +91,9 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
   - `stacked`（默认）：多序列使用 `stack` 堆叠输出
   - `dataset`：多序列使用 ECharts `dataset` （数据集）输出（`dimensions/source`），不写入 `stack`
   - 仅对 `CHART_SORT_MODE=namespace` 与 `CHART_SORT_MODE=account` 生效，`sum` 模式不受影响
+- `EXCLUDE_TAG`
+  - 抓取后排除包含指定 tag 的编辑，默认空（不排除）
+  - 示例：`EXCLUDE_TAG=translate-translation-pages`（通过翻译扩展的自动翻译页面编辑）
 - 注册时间标记（全模式可选）
   - `ACCOUNT_REG_MARKER_ENABLED`：是否启用注册时间标记（`true` 或 `false`，默认 `false`）
   - `ACCOUNT_REG_MARKER_OUT_OF_RANGE`：当注册时间早于统计首月时的处理策略

@@ -140,6 +140,7 @@ CHART_MULTI_SERIES_MODE: str = _parse_multi_series_render_mode(
     os.environ.get("CHART_MULTI_SERIES_MODE", "stacked"))
 CHART_SORT_MODE = parse_chart_sort_mode(
     os.environ.get("CHART_SORT_MODE", "namespace"))
+EXCLUDE_TAG: str = os.environ.get("EXCLUDE_TAG", "").strip()
 OUTPUT_FILE: str = "echart_option.json"
 REQUEST_TIMEOUT_SECONDS: int = 30
 
@@ -320,6 +321,26 @@ def _group_contribs_by_user(
     return {user: grouped.get(user, []) for user in user_order}
 
 
+def _filter_contribs_by_excluded_tag(
+    contribs: list[dict[str, Any]],
+    excluded_tag: str,
+) -> list[dict[str, Any]]:
+    """排除包含指定 tag 的编辑；excluded_tag 为空时不做过滤。"""
+    if not excluded_tag:
+        return contribs
+
+    filtered: list[dict[str, Any]] = []
+    for contrib in contribs:
+        tags = contrib.get("tags")
+        if isinstance(tags, list) and any(
+            isinstance(tag, str) and tag == excluded_tag
+            for tag in tags
+        ):
+            continue
+        filtered.append(contrib)
+    return filtered
+
+
 def main() -> None:
     """主流程：抓取、过滤、聚合、生成并写出 JSON。"""
     try:
@@ -360,6 +381,7 @@ def main() -> None:
 
             # 调用单个 API 查询，传入用管道符分隔的用户列表
             all_contribs = fetch_all_contribs(WIKI_API, USER, query_namespaces)
+            all_contribs = _filter_contribs_by_excluded_tag(all_contribs, EXCLUDE_TAG)
 
             # 按用户分组贡献（查询阶段已应用命名空间过滤）
             accounts_contribs = _group_contribs_by_user(all_contribs, users)
@@ -389,6 +411,10 @@ def main() -> None:
                 WIKI_API,
                 USER,
                 query_namespaces,
+            )
+            filtered_contribs = _filter_contribs_by_excluded_tag(
+                filtered_contribs,
+                EXCLUDE_TAG,
             )
 
             print(f"统计总编辑数（过滤后）: {len(filtered_contribs)}")
