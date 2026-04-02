@@ -191,7 +191,11 @@ def _login_if_configured(session: requests.Session, api_url: str) -> None:
         raise RuntimeError(f"API 登录失败: {exc}") from exc
 
 
-def fetch_all_contribs(api_url: str, user: str) -> list[dict[str, Any]]:
+def fetch_all_contribs(
+    api_url: str,
+    user: str,
+    query_namespaces: str,
+) -> list[dict[str, Any]]:
     """调用 MediaWiki API 拉取指定用户的全部 usercontribs（含 continue 分页）。"""
     session = build_session(USER_AGENT)
     _login_if_configured(session, api_url)
@@ -203,7 +207,8 @@ def fetch_all_contribs(api_url: str, user: str) -> list[dict[str, Any]]:
         "list": "usercontribs",
         "ucuser": user,
         "uclimit": USERCONTRIBS_LIMIT,
-        "ucprop": "ids|title|timestamp|comment|size|sizediff|flags|tags",
+        "ucprop": "title|timestamp|tags",
+        "ucnamespace": query_namespaces,
         "maxlag": MAX_LAG,  # 避免在服务器高负载时运行
     }
 
@@ -254,48 +259,36 @@ def fetch_all_contribs(api_url: str, user: str) -> list[dict[str, Any]]:
     return all_contribs
 
 
-def _auto_excluded_namespaces_from_contribs(
-        contribs: list[dict[str, Any]]) -> set[int]:
-    detected_namespaces: set[int] = set()
-    for item in contribs:
-        ns = item.get("ns")
-        if isinstance(ns, int):
-            detected_namespaces.add(ns)
-
-    # 自动排除用户命名空间（2）和奇数命名空间（常见讨论页）。
-    return {
-        ns_id
-        for ns_id in detected_namespaces if ns_id == 2 or ns_id % 2 == 1
-    }
-
-
-def _resolve_excluded_namespaces(
-    contribs: list[dict[str, Any]],
+def _build_usercontribs_namespace_query(
+    namespace_map: dict[int, str],
     configured_excluded_namespaces: set[int] | None,
-) -> tuple[set[int], bool]:
-    """返回排除的命名空间集合和是否为自动推断的标记。
+) -> tuple[set[int], bool, str]:
+    """构建 usercontribs 的命名空间查询参数。
 
     Returns:
-        (excluded_namespaces, is_auto_inferred)
+        (excluded_namespaces, is_auto_inferred, ucnamespace)
     """
-    if configured_excluded_namespaces is not None:
-        return configured_excluded_namespaces, False
-    return _auto_excluded_namespaces_from_contribs(contribs), True
+    all_namespace_ids: set[int] = set(namespace_map.keys())
 
+    if configured_excluded_namespaces is None:
+        # 自动排除用户命名空间（2）和奇数命名空间（常见讨论页）。
+        excluded_namespaces = {
+            ns_id
+            for ns_id in all_namespace_ids
+            if ns_id == 2 or ns_id % 2 == 1
+        }
+        is_auto_inferred = True
+    else:
+        excluded_namespaces = configured_excluded_namespaces
+        is_auto_inferred = False
 
-def filter_namespace(contribs: list[dict[str, Any]],
-                     excluded_namespaces: set[int]) -> list[dict[str, Any]]:
-    """过滤掉指定命名空间。"""
-    if not excluded_namespaces:
-        return contribs
+    included_namespace_ids = sorted(all_namespace_ids - excluded_namespaces)
+    if not included_namespace_ids:
+        raise RuntimeError(
+            "命名空间筛选后无可查询命名空间，请检查 EXCLUDED_NAMESPACES 配置。")
 
-    filtered: list[dict[str, Any]] = []
-    for item in contribs:
-        ns = item.get("ns")
-        if isinstance(ns, int) and ns in excluded_namespaces:
-            continue
-        filtered.append(item)
-    return filtered
+    query_namespaces = "|".join(str(ns_id) for ns_id in included_namespace_ids)
+    return excluded_namespaces, is_auto_inferred, query_namespaces
 
 
 def _build_generated_time() -> str:
@@ -307,38 +300,24 @@ def _build_generated_time() -> str:
 def _group_contribs_by_user(
     contribs: list[dict[str, Any]],
     user_order: list[str],
-    excluded_namespaces: set[int],
 ) -> dict[str, list[dict[str, Any]]]:
-    """根据贡献中的 'user' 字段将贡献分组，并应用命名空间过滤。
+    """根据贡献中的 'user' 字段将贡献分组。
 
     Args:
         contribs: 从 API 获取的贡献列表
         user_order: 用户的预期顺序
-        excluded_namespaces: 需要排除的命名空间集合
 
     Returns:
-        键为用户名，值为该用户的已过滤 contribs 列表的字典（按 user_order 顺序）
+        键为用户名，值为该用户 contribs 列表的字典（按 user_order 顺序）
     """
-    # 先按用户名分组
     grouped: dict[str, list[dict[str, Any]]] = {}
     for contrib in contribs:
         user = contrib.get("user")
         if not isinstance(user, str):
             continue
-        if user not in grouped:
-            grouped[user] = []
-        grouped[user].append(contrib)
+        grouped.setdefault(user, []).append(contrib)
 
-    # 应用命名空间过滤，并按 user_order 顺序构建结果
-    result: dict[str, list[dict[str, Any]]] = {}
-    for user in user_order:
-        if user in grouped:
-            filtered = filter_namespace(grouped[user], excluded_namespaces)
-            result[user] = filtered
-        else:
-            result[user] = []
-
-    return result
+    return {user: grouped.get(user, []) for user in user_order}
 
 
 def main() -> None:
@@ -350,6 +329,11 @@ def main() -> None:
         session = build_session(USER_AGENT)
         _login_if_configured(session, WIKI_API)
         namespace_map = fetch_namespaces(session, WIKI_API, REQUEST_TIMEOUT_SECONDS)
+        excluded_namespaces, is_auto_inferred, query_namespaces = (
+            _build_usercontribs_namespace_query(
+                namespace_map,
+                EXCLUDED_NAMESPACES,
+            ))
 
         generated_time = _build_generated_time()
 
@@ -375,18 +359,10 @@ def main() -> None:
                 raise RuntimeError("WIKI_USER 为空或格式错误")
 
             # 调用单个 API 查询，传入用管道符分隔的用户列表
-            all_contribs = fetch_all_contribs(WIKI_API, USER)
+            all_contribs = fetch_all_contribs(WIKI_API, USER, query_namespaces)
 
-            # 推断排除的命名空间
-            excluded_namespaces, is_auto_inferred = _resolve_excluded_namespaces(
-                all_contribs,
-                EXCLUDED_NAMESPACES,
-            )
-
-            # 按用户分组贡献（已应用命名空间过滤）
-            accounts_contribs = _group_contribs_by_user(
-                all_contribs, users, excluded_namespaces
-            )
+            # 按用户分组贡献（查询阶段已应用命名空间过滤）
+            accounts_contribs = _group_contribs_by_user(all_contribs, users)
             total_edits = sum(len(contribs) for contribs in accounts_contribs.values())
             print(f"统计总编辑数（过滤后）: {total_edits}")
 
@@ -409,14 +385,10 @@ def main() -> None:
             )
         else:
             # namespace 或 sum 模式：拉取单个用户的贡献
-            all_contribs = fetch_all_contribs(WIKI_API, USER)
-            excluded_namespaces, is_auto_inferred = _resolve_excluded_namespaces(
-                all_contribs,
-                EXCLUDED_NAMESPACES,
-            )
-            filtered_contribs = filter_namespace(
-                all_contribs,
-                excluded_namespaces,
+            filtered_contribs = fetch_all_contribs(
+                WIKI_API,
+                USER,
+                query_namespaces,
             )
 
             print(f"统计总编辑数（过滤后）: {len(filtered_contribs)}")
