@@ -9,11 +9,16 @@ from typing import Any
 
 import requests
 from chart_sort_modes import (
+    DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE,
     build_option_for_sort_mode,
+    parse_account_reg_marker_mode,
     parse_account_reg_marker_out_of_range,
+    parse_calendar_range_mode,
+    parse_chart_render_mode,
     parse_chart_sort_mode,
     parse_multi_series_render_mode,
 )
+from chart_render_modes.calendar_render_mode import build_option as build_calendar_option
 from mw_runtime import (
     DEFAULT_USER_AGENT,
     api_get_json,
@@ -149,6 +154,13 @@ CHART_MULTI_SERIES_MODE: str = _parse_multi_series_render_mode(
     os.environ.get("CHART_MULTI_SERIES_MODE", "stacked"))
 CHART_SORT_MODE = parse_chart_sort_mode(
     os.environ.get("CHART_SORT_MODE", "namespace"))
+CHART_RENDER_MODE: str = parse_chart_render_mode(
+    os.environ.get("CHART_RENDER_MODE", "default"))
+EFFECTIVE_CHART_RENDER_MODE: str = (
+    "calendar" if CHART_MULTI_SERIES_MODE == "calendar" else CHART_RENDER_MODE
+)
+CALENDAR_RANGE_MODE: str = parse_calendar_range_mode(
+    os.environ.get("CALENDAR_RANGE", "yearly"))
 EXCLUDE_TAGS: set[str] = _parse_exclude_tags(
     os.environ.get("EXCLUDE_TAG", ""))
 OUTPUT_FILE: str = "echart_option.json"
@@ -166,12 +178,21 @@ USERCONTRIBS_LIMIT: str = "max"
 USERCONTRIBS_FALLBACK_LIMIT: str = "499"
 
 # 注册时间标记配置（全模式可用）
-ACCOUNT_REG_MARKER_ENABLED: bool = parse_bool_env(
-    os.environ.get("ACCOUNT_REG_MARKER_ENABLED", "false"),
-    default=False,
-)
-ACCOUNT_REG_MARKER_OUT_OF_RANGE: str = parse_account_reg_marker_out_of_range(
-    os.environ.get("ACCOUNT_REG_MARKER_OUT_OF_RANGE", "clamp_to_first"))
+if account_reg_marker_mode_raw := os.environ.get("ACCOUNT_REG_MARKER_MODE", "").strip():
+    account_reg_marker_mode = parse_account_reg_marker_mode(account_reg_marker_mode_raw)
+    ACCOUNT_REG_MARKER_ENABLED = account_reg_marker_mode != "off"
+    ACCOUNT_REG_MARKER_OUT_OF_RANGE = (
+        account_reg_marker_mode
+        if account_reg_marker_mode != "off"
+        else DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE
+    )
+else:
+    ACCOUNT_REG_MARKER_ENABLED = parse_bool_env(
+        os.environ.get("ACCOUNT_REG_MARKER_ENABLED", "false"),
+        default=False,
+    )
+    ACCOUNT_REG_MARKER_OUT_OF_RANGE = parse_account_reg_marker_out_of_range(
+        os.environ.get("ACCOUNT_REG_MARKER_OUT_OF_RANGE", "clamp_to_first"))
 
 
 def _validate_required_config() -> None:
@@ -368,55 +389,14 @@ def main() -> None:
 
         generated_time = _build_generated_time()
 
-        # 全模式通用：可选注册时间标记
-        account_registrations: dict[str, str] = {}
-        if ACCOUNT_REG_MARKER_ENABLED:
-            users_for_markers = _parse_multiple_users(USER)
-            try:
-                account_registrations = fetch_account_registrations(
-                    session=session,
-                    wiki_api=WIKI_API,
-                    users=users_for_markers,
-                    timeout=REQUEST_TIMEOUT_SECONDS,
-                    max_lag=MAX_LAG,
-                )
-            except RuntimeError as exc:
-                print(f"警告：无法查询账户注册时间: {exc}", file=sys.stderr)
-
-        # account 模式：拉取多个用户的贡献（单个 API 请求）
-        if CHART_SORT_MODE == "account":
-            users = _parse_multiple_users(USER)
-            if not users:
-                raise RuntimeError("WIKI_USER 为空或格式错误")
-
-            # 调用单个 API 查询，传入用管道符分隔的用户列表
-            all_contribs = fetch_all_contribs(WIKI_API, USER, query_namespaces)
-            all_contribs = _filter_contribs_by_excluded_tag(all_contribs, EXCLUDE_TAGS)
-
-            # 按用户分组贡献（查询阶段已应用命名空间过滤）
-            accounts_contribs = _group_contribs_by_user(all_contribs, users)
-            total_edits = sum(len(contribs) for contribs in accounts_contribs.values())
-            print(f"统计总编辑数（过滤后）: {total_edits}")
-
-            option = build_option_for_sort_mode(
-                chart_sort_mode=CHART_SORT_MODE,
-                display_name=DISPLAY_NAME,
-                contribs=[],  # account 模式不使用此参数
-                generated_time=generated_time,
-                chart_series_type=CHART_SERIES_TYPE,
-                multi_series_render_mode=CHART_MULTI_SERIES_MODE,
-                excluded_namespaces=excluded_namespaces,
-                namespace_mode="",  # account 模式不使用此参数
-                top_namespace_limit=0,  # account 模式不使用此参数
-                namespace_map=namespace_map,
-                accounts_contribs=accounts_contribs,
-                account_order=users,
-                is_auto_inferred_namespaces=is_auto_inferred,
-                account_registrations=account_registrations,
-                account_reg_marker_out_of_range=ACCOUNT_REG_MARKER_OUT_OF_RANGE,
+        if CHART_MULTI_SERIES_MODE == "calendar" and CHART_RENDER_MODE != "calendar":
+            print(
+                "提示：检测到 CHART_MULTI_SERIES_MODE=calendar，"
+                "将强制启用日历渲染并忽略 CHART_SORT_MODE。",
+                file=sys.stderr,
             )
-        else:
-            # namespace 或 sum 模式：拉取单个用户的贡献
+
+        if EFFECTIVE_CHART_RENDER_MODE == "calendar":
             filtered_contribs = fetch_all_contribs(
                 WIKI_API,
                 USER,
@@ -429,8 +409,7 @@ def main() -> None:
 
             print(f"统计总编辑数（过滤后）: {len(filtered_contribs)}")
 
-            option = build_option_for_sort_mode(
-                chart_sort_mode=CHART_SORT_MODE,
+            option = build_calendar_option(
                 display_name=DISPLAY_NAME,
                 contribs=filtered_contribs,
                 generated_time=generated_time,
@@ -441,9 +420,85 @@ def main() -> None:
                 top_namespace_limit=TOP_NAMESPACE_LIMIT,
                 namespace_map=namespace_map,
                 is_auto_inferred_namespaces=is_auto_inferred,
-                account_registrations=account_registrations,
-                account_reg_marker_out_of_range=ACCOUNT_REG_MARKER_OUT_OF_RANGE,
+                calendar_range_mode=CALENDAR_RANGE_MODE,
             )
+        else:
+            # 全模式通用：可选注册时间标记
+            account_registrations: dict[str, str] = {}
+            if ACCOUNT_REG_MARKER_ENABLED:
+                users_for_markers = _parse_multiple_users(USER)
+                try:
+                    account_registrations = fetch_account_registrations(
+                        session=session,
+                        wiki_api=WIKI_API,
+                        users=users_for_markers,
+                        timeout=REQUEST_TIMEOUT_SECONDS,
+                        max_lag=MAX_LAG,
+                    )
+                except RuntimeError as exc:
+                    print(f"警告：无法查询账户注册时间: {exc}", file=sys.stderr)
+
+            # account 模式：拉取多个用户的贡献（单个 API 请求）
+            if CHART_SORT_MODE == "account":
+                users = _parse_multiple_users(USER)
+                if not users:
+                    raise RuntimeError("WIKI_USER 为空或格式错误")
+
+                # 调用单个 API 查询，传入用管道符分隔的用户列表
+                all_contribs = fetch_all_contribs(WIKI_API, USER, query_namespaces)
+                all_contribs = _filter_contribs_by_excluded_tag(all_contribs, EXCLUDE_TAGS)
+
+                # 按用户分组贡献（查询阶段已应用命名空间过滤）
+                accounts_contribs = _group_contribs_by_user(all_contribs, users)
+                total_edits = sum(len(contribs) for contribs in accounts_contribs.values())
+                print(f"统计总编辑数（过滤后）: {total_edits}")
+
+                option = build_option_for_sort_mode(
+                    chart_sort_mode=CHART_SORT_MODE,
+                    display_name=DISPLAY_NAME,
+                    contribs=[],  # account 模式不使用此参数
+                    generated_time=generated_time,
+                    chart_series_type=CHART_SERIES_TYPE,
+                    multi_series_render_mode=CHART_MULTI_SERIES_MODE,
+                    excluded_namespaces=excluded_namespaces,
+                    namespace_mode="",  # account 模式不使用此参数
+                    top_namespace_limit=0,  # account 模式不使用此参数
+                    namespace_map=namespace_map,
+                    accounts_contribs=accounts_contribs,
+                    account_order=users,
+                    is_auto_inferred_namespaces=is_auto_inferred,
+                    account_registrations=account_registrations,
+                    account_reg_marker_out_of_range=ACCOUNT_REG_MARKER_OUT_OF_RANGE,
+                )
+            else:
+                # namespace 或 sum 模式：拉取单个用户的贡献
+                filtered_contribs = fetch_all_contribs(
+                    WIKI_API,
+                    USER,
+                    query_namespaces,
+                )
+                filtered_contribs = _filter_contribs_by_excluded_tag(
+                    filtered_contribs,
+                    EXCLUDE_TAGS,
+                )
+
+                print(f"统计总编辑数（过滤后）: {len(filtered_contribs)}")
+
+                option = build_option_for_sort_mode(
+                    chart_sort_mode=CHART_SORT_MODE,
+                    display_name=DISPLAY_NAME,
+                    contribs=filtered_contribs,
+                    generated_time=generated_time,
+                    chart_series_type=CHART_SERIES_TYPE,
+                    multi_series_render_mode=CHART_MULTI_SERIES_MODE,
+                    excluded_namespaces=excluded_namespaces,
+                    namespace_mode=NAMESPACE_MODE,
+                    top_namespace_limit=TOP_NAMESPACE_LIMIT,
+                    namespace_map=namespace_map,
+                    is_auto_inferred_namespaces=is_auto_inferred,
+                    account_registrations=account_registrations,
+                    account_reg_marker_out_of_range=ACCOUNT_REG_MARKER_OUT_OF_RANGE,
+                )
 
         output_path = Path(OUTPUT_FILE)
         output_path.write_text(

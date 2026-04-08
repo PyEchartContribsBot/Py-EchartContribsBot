@@ -6,6 +6,7 @@ Python 自动化用户贡献统计脚本：通过 GitHub Actions 定期执行自
 
 - `generate_chart_json.py`：使用 usercontribs 拉取用户贡献并生成 ECharts option JSON
 - `publish_chart_json.py`：使用 edit 上传生成的 JSON 到指定 MediaWiki 页面
+- `chart_render_modes/calendar_render_mode.py`：日历热力图渲染（可由 `CHART_RENDER_MODE` 或 `CHART_MULTI_SERIES_MODE=calendar` 触发）
 - `.github/workflows/update-wiki-chart.yml`：定时（或手动）运行 generate_chart_json.py 和 publish_chart_json.py 的 GitHub Actions Workflow
 - `.env.example`：本地运行时的环境变量示例文件
 
@@ -43,6 +44,12 @@ Python 自动化用户贡献统计脚本：通过 GitHub Actions 定期执行自
 
 在 GitHub 仓库中配置以下项目：
 
+### 配置分层建议
+
+- 基础必填：`WIKI_API`、`WIKI_USER`、`WIKI_PAGE`、`BOT_USERNAME`、`BOT_PASSWORD`
+- 常用配置：`CHART_SORT_MODE`、`CHART_RENDER_MODE`、`CALENDAR_RANGE`、`EXCLUDED_NAMESPACES`、`EXCLUDE_TAG`
+- 高级配置（按需开启）：`CHART_MULTI_SERIES_MODE`、`NAMESPACE_MODE`、`TOP_NAMESPACE_LIMIT`、`ACCOUNT_REG_MARKER_MODE`、`MW_API_HEADERS_JSON`、`EDIT_TAG_CANDIDATES`
+
 ### 通用配置项
 
 Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secrets 优先**，可按实际情况选择。
@@ -61,11 +68,14 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
 | `NAMESPACE_MODE` |  | ✅ | 按命名空间归类时，对于大量命名空间的处理方法，`top` 或 `all`，默认 `top` |
 | `TOP_NAMESPACE_LIMIT` |  | ✅ | Top 展示的命名空间数量（正整数，默认 `10`） |
 | `CHART_SORT_MODE` |  | ✅ | <details><summary>`namespace`、`sum` 或 `account`，默认 `namespace`</summary><ol><li>`namespace`：按命名空间统计（多序列）<br></li><li>`sum`：按月总贡献（单序列）<br></li><li>`account`：按月账户统计（多用户模式）</li></ol></details> |
-| `CHART_SERIES_TYPE` |  | ✅ | `bar`（直方图）或 `line`（折线图）<br>仅控制图表初始展示类型，默认 `bar` |
-| `CHART_MULTI_SERIES_MODE` |  | ✅ | `stacked` 或 `dataset`，默认 `stacked`<br>仅对 `namespace`、`account` 两个多序列模式生效：`stacked` 输出 `series[].data + stack`，`dataset` 输出 `dataset.dimensions/source` |
+| `CHART_RENDER_MODE` |  | ✅ | `default` 或 `calendar`，默认 `default`<br>`calendar` 优先于 `CHART_SORT_MODE`，直接输出日历热力图 |
+| `CHART_SERIES_TYPE` |  | ✅ | `bar`（直方图）或 `line`（折线图）<br>仅控制图表初始展示类型，默认 `bar`；`CHART_RENDER_MODE=calendar` 时忽略此项 |
+| `CHART_MULTI_SERIES_MODE` |  | ✅ | `stacked`、`dataset` 或 `calendar`，默认 `stacked`<br>常规仅对 `namespace`、`account` 两个多序列模式生效；设为 `calendar` 时会强制切换到日历热力图并忽略 `CHART_SORT_MODE` |
 | `EXCLUDE_TAG` |  | ✅ | 抓取后排除包含指定 tag 的编辑，默认空（不排除）<br>可填写逗号分隔的多个 tag，例如：`translate-translation-pages, mw-manual-revert`<br>其中 `translate-translation-pages` 表示通过翻译扩展的自动翻译页面编辑 |
-| `ACCOUNT_REG_MARKER_ENABLED` |  | ✅ | 是否启用注册时间标记（全模式可用）<br>`true` 或 `false`，默认 `false` |
-| `ACCOUNT_REG_MARKER_OUT_OF_RANGE` |  | ✅ | `clamp_to_first` 或 `hide`<br>默认 `clamp_to_first`：注册时间早于统计区间时的处理策略 |
+| `ACCOUNT_REG_MARKER_MODE` |  | ✅ | 注册时间标记模式：`off`、`clamp_to_first` 或 `hide`，默认 `off` |
+| `ACCOUNT_REG_MARKER_ENABLED`（兼容） |  | ✅ | 旧变量，建议迁移到 `ACCOUNT_REG_MARKER_MODE` |
+| `ACCOUNT_REG_MARKER_OUT_OF_RANGE`（兼容） |  | ✅ | 旧变量，建议迁移到 `ACCOUNT_REG_MARKER_MODE` |
+| `CALENDAR_RANGE` |  | ✅ | 仅对 `CHART_RENDER_MODE=calendar` 生效，`yearly` 或 `last365`，默认 `yearly`<br>`yearly`：按年纵向排列多个日历；`last365`：仅显示最近 365 天 |
 | `EDIT_TAG_CANDIDATES` |  | ✅ | 逗号分隔标签候选列表，按顺序尝试，默认值：`bot, Bot`<br>留空时不尝试任何标签，仅执行无标签编辑 |
 
 ### 图表行为配置项
@@ -87,23 +97,29 @@ Workflow 兼容策略：同时支持 Secrets 和 Variables 的项均为 **Secret
   - 输出按月账户统计图（多用户模式）
   - 在 `WIKI_USER` 中使用 `|` 或 `%7C` 分隔多个用户名，例如：`User1|User2|User3`
   - 拉取所有指定用户的贡献并合并，按照 `WIKI_USER` 中的用户顺序在图表中排列
+- `CHART_RENDER_MODE=calendar`
+  - 优先于 `CHART_SORT_MODE`，直接输出日历热力图
+  - `CALENDAR_RANGE=yearly`：按年纵向排列多个日历，适合展示完整历史
+  - `CALENDAR_RANGE=last365`：仅显示最近 365 天
 - `CHART_MULTI_SERIES_MODE`
   - `stacked`（默认）：多序列使用 `stack` 堆叠输出
   - `dataset`：多序列使用 ECharts `dataset` （数据集）输出（`dimensions/source`），不写入 `stack`
-  - 仅对 `CHART_SORT_MODE=namespace` 与 `CHART_SORT_MODE=account` 生效，`sum` 模式不受影响
+  - `calendar`：兼容快捷写法，等价于强制 `CHART_RENDER_MODE=calendar`，并忽略 `CHART_SORT_MODE`
+  - 仅当值为 `stacked` 或 `dataset` 时，对 `CHART_SORT_MODE=namespace` 与 `CHART_SORT_MODE=account` 生效
 - `EXCLUDE_TAG`
   - 抓取后排除包含指定 tag 的编辑，默认空（不排除）
   - 可填写逗号分隔的多个 tag，例如：`EXCLUDE_TAG=translate-translation-pages,mw-manual-revert`
   - `translate-translation-pages` 表示通过翻译扩展的自动翻译页面编辑
 - 注册时间标记（全模式可选）
-  - `ACCOUNT_REG_MARKER_ENABLED`：是否启用注册时间标记（`true` 或 `false`，默认 `false`）
-  - `ACCOUNT_REG_MARKER_OUT_OF_RANGE`：当注册时间早于统计首月时的处理策略
-    - `clamp_to_first`（默认）：将标记钳制到首个可见月，标签中注明“早于统计区间”
+  - `ACCOUNT_REG_MARKER_MODE`：
+    - `off`（默认）：不显示注册时间标记
+    - `clamp_to_first`：注册时间早于统计首月时，将标记钳制到首个可见月并注明“早于统计区间”
     - `hide`：不显示那些出界的标记
+  - 兼容旧变量：仍支持 `ACCOUNT_REG_MARKER_ENABLED` + `ACCOUNT_REG_MARKER_OUT_OF_RANGE` 组合
   - 所有注册标记归集到独立的 `注册时间` 散点系列（legend 可单独开关）
   - 注册日期精确到日（例如 `2001-01-21`），标记位置按月对齐（xAxis），Y坐标固定为 `0`
   - 注册时间提示仅在鼠标悬停到标记图标时展示
-- `CHART_SERIES_TYPE` 仅决定初始 `series.type`，后续可通过 `magicType` 在 `line/bar` 间切换
+- `CHART_SERIES_TYPE` 仅决定初始 `series.type`，后续可通过 `magicType` 在 `line/bar` 间切换；`CHART_RENDER_MODE=calendar` 时不生效
 </details>
 
 ## Workflow 行为

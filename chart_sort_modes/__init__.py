@@ -3,13 +3,21 @@ from __future__ import annotations
 from typing import Any, Literal
 
 ChartSortMode = Literal["namespace", "sum", "account"]
+ChartRenderMode = Literal["default", "calendar"]
+CalendarRangeMode = Literal["yearly", "last365"]
+AccountRegMarkerMode = Literal["off", "clamp_to_first", "hide"]
 AccountRegMarkerOutOfRange = Literal["clamp_to_first", "hide"]
-MultiSeriesRenderMode = Literal["stacked", "dataset"]
+MultiSeriesRenderMode = Literal["stacked", "dataset", "calendar"]
 
+DEFAULT_CHART_RENDER_MODE: ChartRenderMode = "default"
+DEFAULT_CALENDAR_RANGE_MODE: CalendarRangeMode = "yearly"
 _SUPPORTED_CHART_SORT_MODES: set[str] = {"namespace", "sum", "account"}
 DEFAULT_CHART_MULTI_SERIES_MODE: MultiSeriesRenderMode = "stacked"
-_SUPPORTED_CHART_MULTI_SERIES_MODES: set[str] = {"stacked", "dataset"}
+_SUPPORTED_CHART_MULTI_SERIES_MODES: set[str] = {"stacked", "dataset", "calendar"}
+_SUPPORTED_CHART_RENDER_MODES: set[str] = {"default", "calendar"}
+_SUPPORTED_CALENDAR_RANGE_MODES: set[str] = {"yearly", "last365"}
 
+DEFAULT_ACCOUNT_REG_MARKER_MODE: AccountRegMarkerMode = "off"
 DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE: AccountRegMarkerOutOfRange = "clamp_to_first"
 SUPPORTED_ACCOUNT_REG_MARKER_OUT_OF_RANGE: set[str] = {"clamp_to_first", "hide"}
 
@@ -32,15 +40,48 @@ def parse_chart_sort_mode(raw_value: str) -> ChartSortMode:
     return value  # type: ignore[return-value]
 
 
+def parse_chart_render_mode(raw_value: str) -> ChartRenderMode:
+    value = raw_value.strip().lower()
+    if not value:
+        return DEFAULT_CHART_RENDER_MODE
+    if value not in _SUPPORTED_CHART_RENDER_MODES:
+        raise RuntimeError(
+            "环境变量 CHART_RENDER_MODE 仅支持 default 或 calendar，"
+            "例如 CHART_RENDER_MODE=calendar")
+    return value  # type: ignore[return-value]
+
+
+def parse_calendar_range_mode(raw_value: str) -> CalendarRangeMode:
+    value = raw_value.strip().lower()
+    if not value:
+        return DEFAULT_CALENDAR_RANGE_MODE
+    if value not in _SUPPORTED_CALENDAR_RANGE_MODES:
+        raise RuntimeError(
+            "环境变量 CALENDAR_RANGE 仅支持 yearly 或 last365，"
+            "例如 CALENDAR_RANGE=yearly")
+    return value  # type: ignore[return-value]
+
+
 def parse_multi_series_render_mode(raw_value: str) -> MultiSeriesRenderMode:
     value = raw_value.strip().lower()
     if not value:
         return DEFAULT_CHART_MULTI_SERIES_MODE
     if value not in _SUPPORTED_CHART_MULTI_SERIES_MODES:
         raise RuntimeError(
-            "环境变量 CHART_MULTI_SERIES_MODE 仅支持 stacked 或 dataset，"
+            "环境变量 CHART_MULTI_SERIES_MODE 仅支持 stacked、dataset 或 calendar，"
             "例如 CHART_MULTI_SERIES_MODE=stacked")
     return value  # type: ignore[return-value]
+
+
+def parse_account_reg_marker_mode(raw_value: str) -> AccountRegMarkerMode:
+    value = raw_value.strip().lower()
+    if not value:
+        return DEFAULT_ACCOUNT_REG_MARKER_MODE
+    if value in {"off", "clamp_to_first", "hide"}:
+        return value  # type: ignore[return-value]
+    raise RuntimeError(
+        "环境变量 ACCOUNT_REG_MARKER_MODE 仅支持 off、clamp_to_first 或 hide，"
+        "例如 ACCOUNT_REG_MARKER_MODE=off")
 
 
 def parse_account_reg_marker_out_of_range(raw_value: str) -> AccountRegMarkerOutOfRange:
@@ -67,11 +108,33 @@ def build_option_for_sort_mode(
     is_auto_inferred_namespaces: bool = False,
     accounts_contribs: dict[str, list[dict[str, Any]]] | None = None,
     account_order: list[str] | None = None,
+    chart_render_mode: ChartRenderMode = DEFAULT_CHART_RENDER_MODE,
+    calendar_range_mode: CalendarRangeMode = DEFAULT_CALENDAR_RANGE_MODE,
     account_registrations: dict[str, str] | None = None,
     account_reg_marker_out_of_range: AccountRegMarkerOutOfRange = (
         DEFAULT_ACCOUNT_REG_MARKER_OUT_OF_RANGE
     ),
 ) -> dict[str, Any]:
+    if multi_series_render_mode == "calendar":
+        chart_render_mode = "calendar"
+
+    if chart_render_mode == "calendar":
+        from chart_render_modes.calendar_render_mode import build_option as build_calendar_option
+
+        return build_calendar_option(
+            display_name=display_name,
+            contribs=contribs,
+            generated_time=generated_time,
+            chart_series_type=chart_series_type,
+            multi_series_render_mode=multi_series_render_mode,
+            excluded_namespaces=excluded_namespaces,
+            namespace_mode=namespace_mode,
+            top_namespace_limit=top_namespace_limit,
+            namespace_map=namespace_map,
+            is_auto_inferred_namespaces=is_auto_inferred_namespaces,
+            calendar_range_mode=calendar_range_mode,
+        )
+
     if chart_sort_mode == "account":
         from chart_sort_modes.account_sort_mode import build_option as build_account_option
 
