@@ -243,7 +243,7 @@ def build_option(
             "calculable": True,
             "orient": "horizontal",
             "left": "center",
-            "top": 40,
+            "bottom": 18,
             "inRange": {
                 "color": _HEATMAP_COLORS,
             },
