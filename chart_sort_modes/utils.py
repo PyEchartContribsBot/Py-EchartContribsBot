@@ -8,6 +8,7 @@ from chart_sort_modes import (
     REGISTRATION_MARKER_COLOR,
     REGISTRATION_MARKER_SYMBOL,
 )
+from mw_runtime import canonicalize_wiki_username
 
 
 def build_excluded_namespaces_text(
@@ -63,10 +64,16 @@ def build_registration_scatter_series(
 
     start_year, start_month = full_months[0]
     ordered_accounts = account_order or list(account_registrations.keys())
+    # 注册时间以 API 返回的规范用户名为键，这里按规范写法匹配配置写法。
+    registrations_by_canonical = {
+        canonicalize_wiki_username(name): iso
+        for name, iso in account_registrations.items()
+    }
     registration_scatter_data: list[dict[str, Any]] = []
 
     for account_name in ordered_accounts:
-        registration_iso = account_registrations.get(account_name)
+        registration_iso = registrations_by_canonical.get(
+            canonicalize_wiki_username(account_name))
         if not registration_iso:
             continue
 
