@@ -233,11 +233,15 @@ def fetch_all_contribs(
     _login_if_configured(session, api_url)
     all_contribs: list[dict[str, Any]] = []
 
+    # WIKI_USER 可用 %7C 分隔多个用户；这里统一为 API 所需的 | 分隔形式，
+    # 否则 requests 会把 % 重新编码为 %25，wiki 将返回 baduser。
+    users = _parse_multiple_users(user)
+
     params: dict[str, Any] = {
         "action": "query",
         "format": "json",
         "list": "usercontribs",
-        "ucuser": user,
+        "ucuser": "|".join(users) or user,
         "uclimit": USERCONTRIBS_LIMIT,
         "ucprop": "title|timestamp|tags",
         "ucnamespace": query_namespaces,
