@@ -24,6 +24,25 @@ def parse_bool_env(raw_value: str, *, default: bool) -> bool:
     raise RuntimeError("仅支持 true/false 或留空")
 
 
+def canonicalize_wiki_username(user: str) -> str:
+    """将用户名归一化为 MediaWiki API 返回的规范写法。
+
+    MediaWiki 视下划线与空格为同一字符，且名称首字母大小写不敏感。
+    查询参数可带 `User:` 前缀，但 API 返回的 `name`/`user` 字段不含该前缀。
+    """
+    name = user.strip()
+    lowered = name.lower()
+    prefix = next(
+        (item for item in ("user:", "u:") if lowered.startswith(item)), None)
+    if prefix:
+        name = name[len(prefix):]
+
+    name = " ".join(name.replace("_", " ").split())
+    if not name:
+        return ""
+    return name[0].upper() + name[1:]
+
+
 def load_env_file(env_path: str = ".env") -> None:
     path = Path(env_path)
     if not path.exists() or not path.is_file():

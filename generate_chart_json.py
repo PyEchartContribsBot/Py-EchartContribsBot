@@ -23,6 +23,7 @@ from mw_runtime import (
     DEFAULT_USER_AGENT,
     api_get_json,
     build_session,
+    canonicalize_wiki_username,
     fetch_account_registrations,
     fetch_namespaces,
     load_env_file,
@@ -342,14 +343,20 @@ def _group_contribs_by_user(
     Returns:
         键为用户名，值为该用户 contribs 列表的字典（按 user_order 顺序）
     """
-    grouped: dict[str, list[dict[str, Any]]] = {}
+    # API 的 "user" 字段是规范用户名，可能与配置写法只差下划线/空格或
+    # `User:` 前缀，因此按规范写法建立索引后再匹配，避免丢弃 API 已返回的贡献。
+    grouped_by_canonical: dict[str, list[dict[str, Any]]] = {}
     for contrib in contribs:
         user = contrib.get("user")
         if not isinstance(user, str):
             continue
-        grouped.setdefault(user, []).append(contrib)
+        grouped_by_canonical.setdefault(
+            canonicalize_wiki_username(user), []).append(contrib)
 
-    return {user: grouped.get(user, []) for user in user_order}
+    return {
+        user: grouped_by_canonical.get(canonicalize_wiki_username(user), [])
+        for user in user_order
+    }
 
 
 def _filter_contribs_by_excluded_tag(
